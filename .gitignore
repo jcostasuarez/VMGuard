@@ -1,2 +1,5 @@
-VMGuard.log
 *.log
+bin/
+obj/
+*.user
+.vs/

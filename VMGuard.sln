@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1769F503-0EBF-4B53-B4C4-E0DB67AA67B1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VMGuard.Tests", "tests\VMGuard.Tests\VMGuard.Tests.csproj", "{8E127EA2-ABC2-40CE-94AF-36388AFBF754}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{4B858CD7-7B7E-441B-99A2-239F23DCE4E2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VMGuard", "src\VMGuard\VMGuard.csproj", "{66F29D11-4C95-4604-BFF8-CF9A62F93798}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8E127EA2-ABC2-40CE-94AF-36388AFBF754}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E127EA2-ABC2-40CE-94AF-36388AFBF754}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E127EA2-ABC2-40CE-94AF-36388AFBF754}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E127EA2-ABC2-40CE-94AF-36388AFBF754}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66F29D11-4C95-4604-BFF8-CF9A62F93798}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66F29D11-4C95-4604-BFF8-CF9A62F93798}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66F29D11-4C95-4604-BFF8-CF9A62F93798}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66F29D11-4C95-4604-BFF8-CF9A62F93798}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8E127EA2-ABC2-40CE-94AF-36388AFBF754} = {1769F503-0EBF-4B53-B4C4-E0DB67AA67B1}
+		{66F29D11-4C95-4604-BFF8-CF9A62F93798} = {4B858CD7-7B7E-441B-99A2-239F23DCE4E2}
+	EndGlobalSection
+EndGlobal
