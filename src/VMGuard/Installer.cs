@@ -12,8 +12,8 @@ using System.Xml.Linq;
 namespace VMGuard
 {
     /// <summary>
-    /// Instala VMGuard en %USERPROFILE%\VMGuard y crea la tarea programada "VMGuard"
-    /// que lo arranca al iniciar sesion. No requiere permisos de administrador.
+    /// Installs VMGuard to %USERPROFILE%\VMGuard and creates the "VMGuard" scheduled task
+    /// that starts it at sign-in. Does not require administrator rights.
     /// </summary>
     internal static class Installer
     {
@@ -25,13 +25,13 @@ namespace VMGuard
 
         public static string InstalledExe => Path.Combine(InstallDir, "VMGuard.exe");
 
-        /// <summary>Instala o reinstala. Devuelve un texto para mostrar al usuario.</summary>
+        /// <summary>Installs or reinstalls. Returns a message to show the user.</summary>
         public static string Install(Options opt)
         {
             string self = Process.GetCurrentProcess().MainModule.FileName;
             Directory.CreateDirectory(InstallDir);
 
-            // Detener la version anterior (exe o script de PowerShell) antes de reemplazarla
+            // Stop the previous version (exe or PowerShell script) before replacing it
             RunSchtasks("/End /TN " + TaskName, ignoreErrors: true);
             StopRunningInstances();
 
@@ -52,29 +52,29 @@ namespace VMGuard
             }
             RunSchtasks("/Run /TN " + TaskName, ignoreErrors: false);
 
-            return "VMGuard instalado y en ejecucion.\n\n" +
-                   "Umbral de bateria: " + opt.BatteryThreshold + "%\n" +
-                   "Programa: " + InstalledExe + "\n" +
+            return "VMGuard is installed and running.\n\n" +
+                   "Battery threshold: " + opt.BatteryThreshold + "%\n" +
+                   "Program: " + InstalledExe + "\n" +
                    "Log: " + Path.Combine(InstallDir, "VMGuard.log");
         }
 
-        /// <summary>Desinstala: borra la tarea y detiene VMGuard. La carpeta y el log se conservan.</summary>
+        /// <summary>Uninstalls: deletes the task and stops VMGuard. The folder and the log are kept.</summary>
         public static string Uninstall()
         {
             RunSchtasks("/End /TN " + TaskName, ignoreErrors: true);
             RunSchtasks("/Delete /F /TN " + TaskName, ignoreErrors: true);
             StopRunningInstances();
-            return "VMGuard desinstalado.\n\nLa carpeta " + InstallDir + " (programa y log) no se borra; podes eliminarla a mano.";
+            return "VMGuard is uninstalled.\n\nThe folder " + InstallDir + " (program and log) is not deleted; you can remove it by hand.";
         }
 
-        /// <summary>Definicion de la tarea programada (formato XML del Programador de tareas).</summary>
+        /// <summary>Scheduled task definition (Task Scheduler XML format).</summary>
         internal static XDocument BuildTaskXml(string user, string exe, string arguments, string workingDir)
         {
             XNamespace ns = TaskNs;
             return new XDocument(
                 new XElement(ns + "Task", new XAttribute("version", "1.2"),
                     new XElement(ns + "RegistrationInfo",
-                        new XElement(ns + "Description", "Suspende las VMs de VMware al apagar o con bateria baja")),
+                        new XElement(ns + "Description", "Suspends VMware VMs on shutdown or low battery")),
                     new XElement(ns + "Triggers",
                         new XElement(ns + "LogonTrigger",
                             new XElement(ns + "Enabled", "true"),
@@ -103,8 +103,8 @@ namespace VMGuard
         }
 
         /// <summary>
-        /// Detiene otras instancias de VMGuard.exe del usuario y el VMGuard.ps1 de la
-        /// version anterior en PowerShell, si sigue corriendo.
+        /// Stops other VMGuard.exe instances in this session, and the VMGuard.ps1 from the
+        /// previous PowerShell version if it is still running.
         /// </summary>
         private static void StopRunningInstances()
         {
@@ -143,7 +143,7 @@ namespace VMGuard
             }
             catch
             {
-                // WMI no disponible: no es critico
+                // WMI unavailable: not critical
             }
 
             foreach (Process p in toWait)
@@ -164,7 +164,7 @@ namespace VMGuard
                 }
                 catch (IOException) when (i < 10)
                 {
-                    // El proceso anterior puede tardar un poco en soltar el archivo
+                    // The previous process may take a moment to release the file
                     System.Threading.Thread.Sleep(500);
                 }
             }
@@ -188,7 +188,7 @@ namespace VMGuard
                 string output = p.StandardOutput.ReadToEnd();
                 p.WaitForExit();
                 if (p.ExitCode != 0 && !ignoreErrors)
-                    throw new InvalidOperationException("schtasks " + arguments.Split(' ')[0] + " fallo (" + p.ExitCode + "): " +
+                    throw new InvalidOperationException("schtasks " + arguments.Split(' ')[0] + " failed (" + p.ExitCode + "): " +
                                                         (err.Result + " " + output).Trim());
             }
         }

@@ -6,8 +6,8 @@ using System.Threading;
 namespace VMGuard
 {
     /// <summary>
-    /// Log de texto con fecha. Se escribe desde varios hilos (y puede haber una
-    /// instancia en modo prueba junto a la instalada), asi que usa un mutex con nombre.
+    /// Timestamped text log. It is written from several threads (and a dry-run
+    /// instance may run next to the installed one), so it uses a named mutex.
     /// </summary>
     internal sealed class Logger
     {
@@ -23,7 +23,7 @@ namespace VMGuard
 
         public string Path => _path;
 
-        /// <summary>Si no es null, cada linea tambien se envia aqui (consola en modo prueba).</summary>
+        /// <summary>If not null, every line is also sent here (console in dry-run mode).</summary>
         public Action<string> Echo { get; set; }
 
         public void Write(string message)
@@ -46,7 +46,7 @@ namespace VMGuard
                     }
                     catch
                     {
-                        // Si no se puede escribir el log no hay mucho mas que hacer
+                        // If the log cannot be written there is not much else to do
                     }
                     finally
                     {

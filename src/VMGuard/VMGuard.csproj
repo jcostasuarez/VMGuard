@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Target: .NET Framework 4.8, que ya viene con Windows 10/11.
-    El resultado es un unico VMGuard.exe chico que no necesita instalar ningun runtime.
+    Target: .NET Framework 4.8, which ships with Windows 10/11.
+    The result is a single small VMGuard.exe that needs no runtime install.
   -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -12,13 +12,13 @@
     <AssemblyName>VMGuard</AssemblyName>
     <RootNamespace>VMGuard</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.0.0</Version>
+    <Version>1.0.0</Version>
     <Product>VMGuard</Product>
-    <Description>Suspende las VMs de VMware Workstation al apagar o con bateria baja</Description>
+    <Description>Suspends VMware Workstation VMs on shutdown or low battery</Description>
     <Copyright>VMGuard</Copyright>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Permite compilar tambien fuera de Windows (CI, Linux) -->
+    <!-- Allows building outside Windows too (CI, Linux) -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 

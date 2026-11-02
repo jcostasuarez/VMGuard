@@ -7,15 +7,15 @@ using System.Windows.Forms;
 namespace VMGuard
 {
     /// <summary>
-    /// Ventana invisible que recibe el aviso de apagado de Windows (WM_QUERYENDSESSION)
-    /// y revisa la bateria con un temporizador. Opcionalmente muestra un icono en la bandeja.
+    /// Invisible window that receives the Windows shutdown notification (WM_QUERYENDSESSION)
+    /// and checks the battery on a timer. Optionally shows a system tray icon.
     ///
-    /// La ventana se "muestra" con opacidad 0 en lugar de quedar oculta: Windows solo
-    /// respeta ShutdownBlockReasonCreate en ventanas visibles de primer nivel.
+    /// The window is "shown" with opacity 0 instead of being hidden: Windows only
+    /// honors ShutdownBlockReasonCreate for visible top-level windows.
     /// </summary>
     internal sealed class GuardForm : Form
     {
-        /// <summary>Lo maximo que se espera a una suspension por bateria en curso al apagar.</summary>
+        /// <summary>How long to wait, at shutdown, for a battery suspend already in progress.</summary>
         private static readonly TimeSpan ShutdownWaitForBackground = TimeSpan.FromSeconds(330);
 
         private readonly Options _opt;
@@ -56,8 +56,8 @@ namespace VMGuard
         {
             if (m.Msg == NativeMethods.WM_QUERYENDSESSION)
             {
-                // Retiene el apagado hasta que las VMs queden suspendidas
-                NativeMethods.ShutdownBlockReasonCreate(Handle, "Suspendiendo maquinas virtuales VMware...");
+                // Hold the shutdown until the VMs are suspended
+                NativeMethods.ShutdownBlockReasonCreate(Handle, "Suspending VMware virtual machines...");
                 try { SuspendForShutdown(); }
                 catch (Exception ex) { _log.Write("ERROR: " + ex.Message); }
                 NativeMethods.ShutdownBlockReasonDestroy(Handle);
@@ -70,16 +70,16 @@ namespace VMGuard
         private void SuspendForShutdown()
         {
             _timer.Stop();
-            // Si hay una suspension por bateria en marcha, se espera a que termine
-            // en lugar de lanzar otra sobre las mismas VMs.
+            // If a battery suspend is running, wait for it to finish instead
+            // of starting another one on the same VMs.
             if (_suspender.IsBusy)
             {
-                _log.Write("Apagado/cierre de sesion durante una suspension en curso -> esperando");
+                _log.Write("Shutdown/sign-out during a suspend in progress -> waiting");
                 _suspender.WaitBackground(ShutdownWaitForBackground);
             }
-            // Pasada final por si quedo alguna VM encendida (o no habia nada en curso)
-            _suspender.SuspendAll("Apagado/cierre de sesion");
-            // Si al final no se apaga (alguien cancelo), se sigue vigilando
+            // Final pass in case a VM is still running (or nothing was in progress)
+            _suspender.SuspendAll("Shutdown/sign-out");
+            // If the shutdown does not happen after all (someone cancelled it), keep watching
             _timer.Start();
         }
 
@@ -97,17 +97,17 @@ namespace VMGuard
 
                 if (ps.PowerLineStatus == PowerLineStatus.Offline && hasBattery && pct <= _opt.BatteryThreshold)
                 {
-                    string reason = "Bateria baja (" + pct + "%, desenchufado, umbral " + _opt.BatteryThreshold + "%)";
-                    // En modo prueba solo se listan VMs (rapido): corre aqui mismo
+                    string reason = "Low battery (" + pct + "%, unplugged, threshold " + _opt.BatteryThreshold + "%)";
+                    // In dry-run mode VMs are only listed (fast): run it right here
                     if (_opt.DryRun) _suspender.SuspendAll(reason);
                     else _suspender.StartBackground(reason);
                 }
                 else if (report)
                 {
-                    _log.Write("Bateria " + (hasBattery ? pct + "%" : "no detectada") + ", energia " + PowerLineText(ps.PowerLineStatus) +
-                               ", umbral " + _opt.BatteryThreshold + "% -> no se suspenderia por bateria");
+                    _log.Write("Battery " + (hasBattery ? pct + "%" : "not detected") + ", power " + PowerLineText(ps.PowerLineStatus) +
+                               ", threshold " + _opt.BatteryThreshold + "% -> would not suspend for battery");
                     var vms = _suspender.GetRunningVMs();
-                    _log.Write("VMs encendidas ahora: " + vms.Count);
+                    _log.Write("Running VMs now: " + vms.Count);
                     foreach (string vmx in vms) _log.Write("  " + vmx);
                 }
             }
@@ -121,33 +121,33 @@ namespace VMGuard
         {
             switch (s)
             {
-                case PowerLineStatus.Online: return "enchufado";
-                case PowerLineStatus.Offline: return "desenchufado";
-                default: return "desconocida";
+                case PowerLineStatus.Online: return "plugged in";
+                case PowerLineStatus.Offline: return "unplugged";
+                default: return "unknown";
             }
         }
 
-        // --- Icono de la bandeja ---------------------------------------------
+        // --- System tray icon ---------------------------------------------
 
         private NotifyIcon CreateTrayIcon()
         {
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Suspender VMs ahora", null, (s, e) =>
+            menu.Items.Add("Suspend VMs now", null, (s, e) =>
             {
-                if (_opt.DryRun) _suspender.SuspendAll("Manual (menu)");
-                else if (!_suspender.StartBackground("Manual (menu)"))
-                    _tray.ShowBalloonTip(3000, "VMGuard", "Ya hay una suspension en curso.", ToolTipIcon.Info);
+                if (_opt.DryRun) _suspender.SuspendAll("Manual (tray menu)");
+                else if (!_suspender.StartBackground("Manual (tray menu)"))
+                    _tray.ShowBalloonTip(3000, "VMGuard", "A suspend is already in progress.", ToolTipIcon.Info);
             });
-            menu.Items.Add("Abrir log", null, (s, e) => OpenLog());
+            menu.Items.Add("Open log", null, (s, e) => OpenLog());
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Salir de VMGuard", null, (s, e) =>
+            menu.Items.Add("Exit VMGuard", null, (s, e) =>
             {
                 var r = MessageBox.Show(
-                    "Si salis, las VMs no se suspenderan al apagar ni con bateria baja hasta que vuelvas a iniciar sesion.\n\nSalir de VMGuard?",
+                    "If you exit, VMs will not be suspended on shutdown or low battery until you sign in again.\n\nExit VMGuard?",
                     "VMGuard", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
                 if (r == DialogResult.Yes)
                 {
-                    _log.Write("VMGuard cerrado desde el icono de la bandeja");
+                    _log.Write("VMGuard closed from the tray icon");
                     Close();
                 }
             });
@@ -166,10 +166,10 @@ namespace VMGuard
         private void UpdateTrayText(PowerStatus ps, int pct, bool hasBattery)
         {
             if (_tray == null) return;
-            string text = "VMGuard" + (_opt.DryRun ? " [PRUEBA]" : "") + "\n" +
-                          (hasBattery ? "Bateria " + pct + "% " + PowerLineText(ps.PowerLineStatus) : "Sin bateria") +
-                          "\nUmbral " + _opt.BatteryThreshold + "%";
-            // NotifyIcon.Text admite como maximo 63 caracteres
+            string text = "VMGuard" + (_opt.DryRun ? " [DRY RUN]" : "") + "\n" +
+                          (hasBattery ? "Battery " + pct + "% " + PowerLineText(ps.PowerLineStatus) : "No battery") +
+                          "\nThreshold " + _opt.BatteryThreshold + "%";
+            // NotifyIcon.Text allows at most 63 characters
             _tray.Text = text.Length > 63 ? text.Substring(0, 63) : text;
         }
 
@@ -179,11 +179,11 @@ namespace VMGuard
             try
             {
                 BeginInvoke((Action)(() =>
-                    _tray.ShowBalloonTip(5000, "VMGuard", reason + ": suspendiendo " + count + " VM(s)", ToolTipIcon.Warning)));
+                    _tray.ShowBalloonTip(5000, "VMGuard", reason + ": suspending " + count + " VM(s)", ToolTipIcon.Warning)));
             }
             catch
             {
-                // La ventana puede estar cerrandose
+                // The window may be closing
             }
         }
 
@@ -196,7 +196,7 @@ namespace VMGuard
             }
             catch (Exception ex)
             {
-                _log.Write("ERROR al abrir el log: " + ex.Message);
+                _log.Write("ERROR opening the log: " + ex.Message);
             }
         }
 

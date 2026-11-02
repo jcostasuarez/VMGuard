@@ -5,7 +5,7 @@ using Microsoft.Win32;
 
 namespace VMGuard
 {
-    /// <summary>Busca vmrun.exe: ruta indicada, registro de VMware, PATH y Program Files.</summary>
+    /// <summary>Finds vmrun.exe: explicit path, VMware registry keys, PATH and Program Files.</summary>
     internal static class VmrunLocator
     {
         private static readonly string[] RegistryKeys =
@@ -24,7 +24,7 @@ namespace VMGuard
                 }
                 catch
                 {
-                    // Ruta mal formada: se ignora
+                    // Malformed path: ignore it
                 }
             }
             return null;
@@ -35,11 +35,11 @@ namespace VMGuard
             if (!string.IsNullOrWhiteSpace(explicitPath))
             {
                 yield return Environment.ExpandEnvironmentVariables(explicitPath);
-                // Si la ruta indicada no existe no se sigue buscando: el usuario pidio esa
+                // If the given path does not exist, do not keep looking: the user asked for that one
                 yield break;
             }
 
-            // Registro (vista de 32 y 64 bits, equivale a WOW6432Node y la clave normal)
+            // Registry (32- and 64-bit views, i.e. WOW6432Node and the regular key)
             foreach (RegistryView view in new[] { RegistryView.Registry32, RegistryView.Registry64 })
             {
                 foreach (string key in RegistryKeys)
@@ -57,7 +57,7 @@ namespace VMGuard
                 if (d.Length > 0) yield return SafeCombine(d, "vmrun.exe");
             }
 
-            // Carpetas por defecto
+            // Default folders
             foreach (string pf in new[]
             {
                 Environment.GetEnvironmentVariable("ProgramFiles(x86)"),

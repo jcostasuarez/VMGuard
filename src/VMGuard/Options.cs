@@ -13,7 +13,7 @@ namespace VMGuard
         Help
     }
 
-    /// <summary>Opciones de linea de comandos.</summary>
+    /// <summary>Command-line options.</summary>
     internal sealed class Options
     {
         public const int DefaultThreshold = 10;
@@ -27,22 +27,25 @@ namespace VMGuard
         public bool NoTrayIcon { get; private set; }
 
         public const string Usage =
-            "VMGuard - suspende las VMs de VMware Workstation al apagar o con bateria baja\n" +
+            "VMGuard - suspends VMware Workstation VMs on shutdown or low battery\n" +
             "\n" +
-            "Uso:\n" +
-            "  VMGuard.exe [opciones]               ejecuta VMGuard (oculto)\n" +
-            "  VMGuard.exe --instalar [opciones]    lo instala para que arranque al iniciar sesion\n" +
-            "  VMGuard.exe --desinstalar            lo desinstala y lo detiene\n" +
+            "Usage:\n" +
+            "  VMGuard.exe [options]               run VMGuard (hidden)\n" +
+            "  VMGuard.exe --install [options]     install it to start at sign-in\n" +
+            "  VMGuard.exe --uninstall             uninstall and stop it\n" +
             "\n" +
-            "Opciones:\n" +
-            "  --umbral N       % de bateria para suspender (por defecto 10)\n" +
-            "  --intervalo N    segundos entre revisiones de bateria (por defecto 30)\n" +
-            "  --vmrun RUTA     ruta a vmrun.exe (por defecto se detecta sola)\n" +
-            "  --dryrun         modo de prueba: registra lo que haria, nunca suspende\n" +
-            "  --sin-icono      no mostrar el icono en la bandeja del sistema\n" +
-            "  --ayuda          muestra esta ayuda";
+            "Options:\n" +
+            "  --threshold N    battery % at which VMs are suspended (default 10)\n" +
+            "  --interval N     seconds between battery checks (default 30)\n" +
+            "  --vmrun PATH     path to vmrun.exe (detected automatically by default)\n" +
+            "  --dry-run        test mode: log what would happen, never suspend\n" +
+            "  --no-tray        do not show the system tray icon\n" +
+            "  --help           show this help";
 
-        /// <summary>Interpreta los argumentos. Lanza ArgumentException si algo no es valido.</summary>
+        /// <summary>
+        /// Parses the arguments. Throws ArgumentException if something is invalid.
+        /// The Spanish names from earlier builds (--umbral, --instalar, ...) are still accepted.
+        /// </summary>
         public static Options Parse(IList<string> args)
         {
             var o = new Options();
@@ -52,7 +55,7 @@ namespace VMGuard
                 string name = Normalize(raw);
                 string value = null;
 
-                // Permite tanto "--umbral 15" como "--umbral=15"
+                // Accepts both "--threshold 15" and "--threshold=15"
                 int eq = name.IndexOf('=');
                 if (eq > 0)
                 {
@@ -62,38 +65,38 @@ namespace VMGuard
 
                 switch (name)
                 {
-                    case "instalar":
                     case "install":
+                    case "instalar":
                         o.Command = Command.Install;
                         break;
-                    case "desinstalar":
                     case "uninstall":
+                    case "desinstalar":
                         o.Command = Command.Uninstall;
                         break;
-                    case "ayuda":
                     case "help":
+                    case "ayuda":
                     case "h":
                     case "?":
                         o.Command = Command.Help;
                         break;
-                    case "dryrun":
                     case "dry-run":
+                    case "dryrun":
                     case "prueba":
                         o.DryRun = true;
                         break;
+                    case "no-tray":
                     case "sin-icono":
                     case "sinicono":
-                    case "no-tray":
                         o.NoTrayIcon = true;
                         break;
+                    case "threshold":
                     case "umbral":
                     case "umbralbateria":
-                    case "threshold":
                         o.BatteryThreshold = ParseInt(raw, value ?? Next(args, ref i, raw), 1, 100);
                         break;
+                    case "interval":
                     case "intervalo":
                     case "intervaloseg":
-                    case "interval":
                         o.IntervalSeconds = ParseInt(raw, value ?? Next(args, ref i, raw), 1, 3600);
                         break;
                     case "vmrun":
@@ -101,24 +104,24 @@ namespace VMGuard
                         o.VmrunPath = (value ?? Next(args, ref i, raw)).Trim().Trim('"');
                         break;
                     default:
-                        throw new ArgumentException("Opcion desconocida: " + raw);
+                        throw new ArgumentException("Unknown option: " + raw);
                 }
             }
             return o;
         }
 
-        /// <summary>Argumentos para relanzar VMGuard con estas mismas opciones (sin el comando).</summary>
+        /// <summary>Arguments to relaunch VMGuard with these same options (without the command).</summary>
         public string ToRunArguments()
         {
             var sb = new StringBuilder();
-            sb.Append("--umbral ").Append(BatteryThreshold.ToString(CultureInfo.InvariantCulture));
-            sb.Append(" --intervalo ").Append(IntervalSeconds.ToString(CultureInfo.InvariantCulture));
+            sb.Append("--threshold ").Append(BatteryThreshold.ToString(CultureInfo.InvariantCulture));
+            sb.Append(" --interval ").Append(IntervalSeconds.ToString(CultureInfo.InvariantCulture));
             if (!string.IsNullOrEmpty(VmrunPath)) sb.Append(" --vmrun ").Append(Quote(VmrunPath));
-            if (NoTrayIcon) sb.Append(" --sin-icono");
+            if (NoTrayIcon) sb.Append(" --no-tray");
             return sb.ToString();
         }
 
-        /// <summary>Entrecomilla un argumento para la linea de comandos de Windows.</summary>
+        /// <summary>Quotes an argument for the Windows command line.</summary>
         public static string Quote(string arg)
         {
             if (arg.Length > 0 && arg.IndexOfAny(new[] { ' ', '\t', '"' }) < 0) return arg;
@@ -142,13 +145,13 @@ namespace VMGuard
             string a = arg.Trim();
             if (a.StartsWith("--", StringComparison.Ordinal)) a = a.Substring(2);
             else if (a.StartsWith("-", StringComparison.Ordinal) || a.StartsWith("/", StringComparison.Ordinal)) a = a.Substring(1);
-            else throw new ArgumentException("Argumento inesperado: " + arg);
+            else throw new ArgumentException("Unexpected argument: " + arg);
             return a.ToLowerInvariant();
         }
 
         private static string Next(IList<string> args, ref int i, string name)
         {
-            if (i + 1 >= args.Count) throw new ArgumentException("Falta el valor de " + name);
+            if (i + 1 >= args.Count) throw new ArgumentException("Missing value for " + name);
             return args[++i];
         }
 
@@ -156,7 +159,7 @@ namespace VMGuard
         {
             if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) || n < min || n > max)
                 throw new ArgumentException(string.Format(CultureInfo.InvariantCulture,
-                    "Valor invalido para {0}: '{1}' (debe ser un numero entre {2} y {3})", name, value, min, max));
+                    "Invalid value for {0}: '{1}' (must be a number between {2} and {3})", name, value, min, max));
             return n;
         }
     }

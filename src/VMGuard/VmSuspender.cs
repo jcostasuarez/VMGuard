@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 
 namespace VMGuard
 {
-    /// <summary>Lista y suspende las VMs encendidas usando vmrun.</summary>
+    /// <summary>Lists and suspends running VMs using vmrun.</summary>
     internal sealed class VmSuspender
     {
-        /// <summary>Tiempo maximo que se espera a que terminen las suspensiones.</summary>
+        /// <summary>Maximum time to wait for the suspends to finish.</summary>
         public static readonly TimeSpan SuspendTimeout = TimeSpan.FromMinutes(5);
 
         private readonly string _vmrun;
@@ -26,16 +26,16 @@ namespace VMGuard
             _dryRun = dryRun;
         }
 
-        /// <summary>Se dispara (en otro hilo) cuando empieza una suspension real: motivo y cantidad de VMs.</summary>
+        /// <summary>Raised (on another thread) when a real suspend starts: reason and number of VMs.</summary>
         public event Action<string, int> SuspendStarting;
 
-        /// <summary>Hay una suspension en segundo plano en curso.</summary>
+        /// <summary>A background suspend is in progress.</summary>
         public bool IsBusy
         {
             get { lock (_bgLock) return _background != null && !_background.IsCompleted; }
         }
 
-        /// <summary>VMs encendidas segun "vmrun -T ws list".</summary>
+        /// <summary>Running VMs according to "vmrun -T ws list".</summary>
         public List<string> GetRunningVMs()
         {
             var psi = NewStartInfo("-T ws list");
@@ -43,24 +43,24 @@ namespace VMGuard
             psi.RedirectStandardError = true;
             using (var p = Process.Start(psi))
             {
-                // Se lee stderr en paralelo para que no se bloquee si se llena
+                // Read stderr in parallel so the process does not block if it fills up
                 var err = p.StandardError.ReadToEndAsync();
                 string output = p.StandardOutput.ReadToEnd();
                 if (!p.WaitForExit(60000))
                 {
                     try { p.Kill(); } catch { }
-                    throw new TimeoutException("vmrun list no respondio en 60 s");
+                    throw new TimeoutException("vmrun list did not respond within 60 s");
                 }
                 if (p.ExitCode != 0)
                 {
                     string msg = (output + " " + err.Result).Trim();
-                    throw new InvalidOperationException("vmrun list devolvio " + p.ExitCode + ": " + msg);
+                    throw new InvalidOperationException("vmrun list returned " + p.ExitCode + ": " + msg);
                 }
                 return ParseList(output);
             }
         }
 
-        /// <summary>Extrae las rutas .vmx de la salida de "vmrun list".</summary>
+        /// <summary>Extracts the .vmx paths from the output of "vmrun list".</summary>
         public static List<string> ParseList(string output)
         {
             return (output ?? "")
@@ -70,27 +70,27 @@ namespace VMGuard
                 .ToList();
         }
 
-        /// <summary>Suspende todas las VMs en paralelo y espera (bloqueante).</summary>
+        /// <summary>Suspends all VMs in parallel and waits (blocking).</summary>
         public void SuspendAll(string reason)
         {
             List<string> vms = GetRunningVMs();
             if (vms.Count == 0)
             {
-                if (_dryRun) _log.Write(reason + " -> no hay VMs encendidas, no se suspenderia nada");
+                if (_dryRun) _log.Write(reason + " -> no running VMs, nothing would be suspended");
                 return;
             }
 
             if (_dryRun)
             {
-                _log.Write(reason + " -> se suspenderian " + vms.Count + " VM(s)");
-                foreach (string vmx in vms) _log.Write("  " + vmx + " -> (no suspendida, modo prueba)");
+                _log.Write(reason + " -> would suspend " + vms.Count + " VM(s)");
+                foreach (string vmx in vms) _log.Write("  " + vmx + " -> (not suspended, dry run)");
                 return;
             }
 
-            _log.Write(reason + " -> suspendiendo " + vms.Count + " VM(s)");
+            _log.Write(reason + " -> suspending " + vms.Count + " VM(s)");
             try { SuspendStarting?.Invoke(reason, vms.Count); } catch { }
 
-            // Todas en paralelo para que tarde lo menos posible
+            // All in parallel so it takes as little time as possible
             var procs = new List<Process>();
             foreach (string vmx in vms)
             {
@@ -101,7 +101,7 @@ namespace VMGuard
                 catch (Exception ex)
                 {
                     procs.Add(null);
-                    _log.Write("  " + vmx + " -> ERROR al lanzar vmrun: " + ex.Message);
+                    _log.Write("  " + vmx + " -> ERROR starting vmrun: " + ex.Message);
                 }
             }
 
@@ -116,15 +116,15 @@ namespace VMGuard
                     if (p.WaitForExit(remaining))
                         _log.Write("  " + vms[i] + " -> exit " + p.ExitCode);
                     else
-                        _log.Write("  " + vms[i] + " -> sin respuesta tras " + SuspendTimeout.TotalMinutes + " min");
+                        _log.Write("  " + vms[i] + " -> no response after " + SuspendTimeout.TotalMinutes + " min");
                 }
             }
         }
 
         /// <summary>
-        /// Lanza SuspendAll en otro hilo para que la ventana siga atendiendo los
-        /// mensajes de Windows (por ejemplo, el aviso de apagado).
-        /// Devuelve false si ya habia una en curso.
+        /// Runs SuspendAll on another thread so the window keeps handling Windows
+        /// messages (for example, the shutdown notification).
+        /// Returns false if one was already in progress.
         /// </summary>
         public bool StartBackground(string reason)
         {
@@ -134,13 +134,13 @@ namespace VMGuard
                 _background = Task.Factory.StartNew(() =>
                 {
                     try { SuspendAll(reason); }
-                    catch (Exception ex) { _log.Write("ERROR (segundo plano): " + ex.Message); }
+                    catch (Exception ex) { _log.Write("ERROR (background): " + ex.Message); }
                 }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                 return true;
             }
         }
 
-        /// <summary>Espera a que termine la suspension en segundo plano, si hay una.</summary>
+        /// <summary>Waits for the background suspend to finish, if there is one.</summary>
         public void WaitBackground(TimeSpan timeout)
         {
             Task t;
