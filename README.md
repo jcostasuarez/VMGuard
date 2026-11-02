@@ -85,6 +85,39 @@ Con una VM encendida, reiniciá la PC. Al volver a entrar, la VM debería estar 
 ...   <ruta-a-tu-vm>.vmx -> exit 0
 ```
 
+### Modo de prueba (`-DryRun`)
+
+Para ver qué haría VMGuard sin suspender nada, corré el script a mano con `-DryRun`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\VMGuard.ps1 -DryRun
+```
+
+En modo de prueba:
+
+- **Nunca** ejecuta `vmrun suspend`. Solo usa `vmrun -T ws list` para ver qué VMs están encendidas.
+- Cada línea del log lleva el prefijo `[DRYRUN]` y además se muestra en la consola.
+- Al arrancar registra el estado actual: porcentaje de batería, si está enchufado y qué VMs están encendidas.
+- Cuando se cumple una condición (batería baja o aviso de apagado), registra el motivo y cada VM que se suspendería.
+- Puede correr al mismo tiempo que la copia instalada sin chocar con ella.
+
+Para salir, cerrá la ventana de PowerShell.
+
+Para probar la batería baja sin esperar a que se descargue, subí el umbral y desenchufá el equipo:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\VMGuard.ps1 -DryRun -UmbralBateria 100 -IntervaloSeg 5
+```
+
+El log debería mostrar algo así:
+
+```
+... [DRYRUN] Bateria baja (87%, desenchufado, umbral 100%) -> se suspenderian 1 VM(s)
+... [DRYRUN]   <ruta-a-tu-vm>.vmx -> (no suspendida, modo prueba)
+```
+
+El log se escribe en `VMGuard.log`, junto al `VMGuard.ps1` que ejecutaste.
+
 ## Desinstalación
 
 ```powershell

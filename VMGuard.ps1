@@ -2,18 +2,23 @@
 #  - Windows se apaga / reinicia / cierra sesion (intercepta WM_QUERYENDSESSION)
 #  - la bateria baja del umbral estando desenchufado
 # Se ejecuta oculto en la sesion del usuario (tarea programada al iniciar sesion).
+#
+# -DryRun: modo de prueba. Registra en el log (y en la consola) que VMs se
+# suspenderian y por que, pero nunca ejecuta 'vmrun suspend'.
 param(
     [int]$UmbralBateria = 10,   # % de bateria para suspender
     [int]$IntervaloSeg  = 30,   # cada cuanto se revisa la bateria
-    [string]$VmrunPath  = ''    # ruta a vmrun.exe; vacio = detectar automaticamente
+    [string]$VmrunPath  = '',   # ruta a vmrun.exe; vacio = detectar automaticamente
+    [switch]$DryRun             # solo registrar, no suspender
 )
 
 $log = Join-Path $PSScriptRoot 'VMGuard.log'
 
 # Funciones compartidas entre el hilo principal y el hilo de suspension en segundo plano.
-# Usan $vmrun y $log del ambito que las carga.
+# Usan $vmrun, $log y $DryRun del ambito que las carga.
 $core = {
     function Write-Log([string]$msg) {
+        if ($DryRun) { $msg = "[DRYRUN] $msg"; Write-Host $msg }
         # El log se escribe desde dos hilos: un mutex evita que se pisen
         $m = New-Object System.Threading.Mutex($false, 'Local\VMGuardLog')
         try {
@@ -31,7 +36,15 @@ $core = {
 
     function Suspend-AllVMs([string]$motivo) {
         $vms = @(Get-RunningVMs)
-        if ($vms.Count -eq 0) { return }
+        if ($vms.Count -eq 0) {
+            if ($DryRun) { Write-Log "$motivo -> no hay VMs encendidas, no se suspenderia nada" }
+            return
+        }
+        if ($DryRun) {
+            Write-Log "$motivo -> se suspenderian $($vms.Count) VM(s)"
+            foreach ($vmx in $vms) { Write-Log "  $vmx -> (no suspendida, modo prueba)" }
+            return
+        }
         Write-Log "$motivo -> suspendiendo $($vms.Count) VM(s)"
         # Todas en paralelo para que tarde lo menos posible
         $procs = foreach ($vmx in $vms) {
@@ -76,8 +89,10 @@ function Find-Vmrun([string]$explicita) {
     return $null
 }
 
-# Una sola instancia
-$mutex = New-Object System.Threading.Mutex($false, 'Local\VMGuard')
+# Una sola instancia (el modo prueba usa otro nombre para poder correr
+# junto a la copia instalada sin chocar con ella)
+$mutexName = if ($DryRun) { 'Local\VMGuard-DryRun' } else { 'Local\VMGuard' }
+$mutex = New-Object System.Threading.Mutex($false, $mutexName)
 if (-not $mutex.WaitOne(0)) { exit }
 
 $vmrun = Find-Vmrun $VmrunPath
@@ -115,8 +130,8 @@ function Start-SuspensionEnSegundoPlano([string]$motivo) {
     $rs.Open()
     $ps = [PowerShell]::Create()
     $ps.Runspace = $rs
-    $codigo = "param(`$vmrun, `$log, `$motivo)`n" + $core.ToString() + "`nSuspend-AllVMs `$motivo"
-    [void]$ps.AddScript($codigo).AddArgument($vmrun).AddArgument($log).AddArgument($motivo)
+    $codigo = "param(`$vmrun, `$log, `$motivo, `$DryRun)`n" + $core.ToString() + "`nSuspend-AllVMs `$motivo"
+    [void]$ps.AddScript($codigo).AddArgument($vmrun).AddArgument($log).AddArgument($motivo).AddArgument([bool]$DryRun)
     $script:bg = @{ PS = $ps; RS = $rs; Handle = $ps.BeginInvoke() }
 }
 
@@ -169,17 +184,32 @@ public class VMGuardWindow : Form {
 $win = New-Object VMGuardWindow
 $win.OnQueryEndSession = [Action]{ Invoke-SuspensionPorApagado }
 
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = $IntervaloSeg * 1000
-$timer.add_Tick({
+function Test-Bateria([bool]$informar) {
     if (Test-SuspensionEnCurso) { return }
     $ps = [System.Windows.Forms.SystemInformation]::PowerStatus
     $pct = [int]($ps.BatteryLifePercent * 100)
     if ($ps.PowerLineStatus -eq 'Offline' -and $pct -le $UmbralBateria) {
-        Start-SuspensionEnSegundoPlano "Bateria baja ($pct%)"
+        $motivo = "Bateria baja ($pct%, desenchufado, umbral $UmbralBateria%)"
+        # En modo prueba solo se listan VMs (rapido), asi que corre aqui mismo
+        # y los mensajes salen en la consola.
+        if ($DryRun) { Suspend-AllVMs $motivo } else { Start-SuspensionEnSegundoPlano $motivo }
+    } elseif ($informar) {
+        Write-Log "Bateria $pct%, energia $($ps.PowerLineStatus), umbral $UmbralBateria% -> no se suspenderia por bateria"
+        $vms = @(Get-RunningVMs)
+        Write-Log "VMs encendidas ahora: $($vms.Count)"
+        foreach ($vmx in $vms) { Write-Log "  $vmx" }
     }
-})
+}
+
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = $IntervaloSeg * 1000
+$timer.add_Tick({ Test-Bateria $false })
 $timer.Start()
 
-Write-Log "VMGuard iniciado (umbral bateria $UmbralBateria%, vmrun: $vmrun)"
+if ($DryRun) {
+    Write-Log "VMGuard iniciado en MODO PRUEBA (umbral bateria $UmbralBateria%, vmrun: $vmrun). No se suspendera ninguna VM. Cerra esta ventana de PowerShell para salir."
+    Test-Bateria $true
+} else {
+    Write-Log "VMGuard iniciado (umbral bateria $UmbralBateria%, vmrun: $vmrun)"
+}
 [System.Windows.Forms.Application]::Run($win)
