@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Security.Principal;
+using Microsoft.Win32;
 using Xunit;
 
 namespace VMGuard.Tests
@@ -14,32 +14,51 @@ namespace VMGuard.Tests
         private static bool IsWindows => Environment.OSVersion.Platform == PlatformID.Win32NT;
 
         [Fact]
-        public void RegistersFindsAndDeletesScheduledTask()
+        public void MissingLegacyTaskOperationsAreNoOps()
+        {
+            if (!IsWindows) return;
+            string name = "VMGuard-Test-" + Guid.NewGuid().ToString("N");
+            Assert.False(ScheduledTask.Exists(name));
+            ScheduledTask.Stop(name);
+            ScheduledTask.Delete(name);
+        }
+
+        [Fact]
+        public void WritesAndRemovesRegistryEntries()
         {
             if (!IsWindows) return;
 
-            string name = "VMGuard-Test-" + Guid.NewGuid().ToString("N");
-            string cmd = Path.Combine(Environment.SystemDirectory, "cmd.exe");
-            string xml = Installer.BuildTaskXml(WindowsIdentity.GetCurrent().Name, cmd, "/c exit 0", Path.GetTempPath()).ToString();
+            string root = @"Software\VMGuard-Test-" + Guid.NewGuid().ToString("N");
+            string runKey = root + @"\Run";
+            string uninstallKey = root + @"\Uninstall\VMGuard";
+            string exe = typeof(Program).Assembly.Location;
             try
             {
-                ScheduledTask.Register(name, xml);
-                Assert.True(ScheduledTask.Exists(name));
+                Registration.SetStartup(@"C:\Apps\VM Guard\VMGuard.exe", "--interval 30", runKey);
+                Assert.Equal(@"""C:\Apps\VM Guard\VMGuard.exe"" --interval 30", Registration.GetStartup(runKey));
 
-                // Registering again replaces it
-                ScheduledTask.Register(name, xml);
-                ScheduledTask.Stop(name);
+                Registration.WriteUninstallEntry(exe, Path.GetDirectoryName(exe), "1.2.3", uninstallKey);
+                Assert.True(Registration.HasUninstallEntry(uninstallKey));
+                using (var k = Registry.CurrentUser.OpenSubKey(uninstallKey))
+                {
+                    Assert.Equal("VMGuard", k.GetValue("DisplayName"));
+                    Assert.Equal("1.2.3", k.GetValue("DisplayVersion"));
+                    Assert.Equal(Options.Quote(exe) + " --uninstall", k.GetValue("UninstallString"));
+                }
+
+                Registration.RemoveStartup(runKey);
+                Registration.RemoveUninstallEntry(uninstallKey);
+                Assert.Null(Registration.GetStartup(runKey));
+                Assert.False(Registration.HasUninstallEntry(uninstallKey));
+
+                // Removing again is a no-op
+                Registration.RemoveStartup(runKey);
+                Registration.RemoveUninstallEntry(uninstallKey);
             }
             finally
             {
-                ScheduledTask.Delete(name);
+                Registry.CurrentUser.DeleteSubKeyTree(root, throwOnMissingSubKey: false);
             }
-            Assert.False(ScheduledTask.Exists(name));
-
-            // Operations on a missing task are no-ops
-            ScheduledTask.Stop(name);
-            ScheduledTask.Run(name);
-            ScheduledTask.Delete(name);
         }
 
         [Fact]

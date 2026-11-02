@@ -33,12 +33,13 @@ From the folder where you downloaded `VMGuard.exe`, in PowerShell or `cmd`:
 This:
 
 1. Copies `VMGuard.exe` to `%USERPROFILE%\VMGuard`.
-2. Creates the **VMGuard** scheduled task, which starts it hidden every time you sign in.
-3. Starts it right away and shows a confirmation message.
+2. Adds it to your startup apps, so it starts hidden every time you sign in. It shows up in **Task Manager → Startup apps** (where you can also disable it).
+3. Adds it to **Settings → Apps → Installed apps**, so you can uninstall it from there.
+4. Starts it right away and shows a confirmation message.
 
-No administrator rights are needed. Reinstalling is safe: it stops the running copy, replaces it and updates the task. To change the threshold, use the tray icon (or install again with another value).
+No administrator rights are needed. Reinstalling is safe: it stops the running copy, replaces it and updates the startup and Installed apps entries. To change the threshold, use the tray icon (or install again with another value).
 
-**If you were using the old PowerShell version**, there is no need to uninstall it first: the installer replaces the **VMGuard** task and stops `VMGuard.ps1` if it is running. Afterwards you can delete `VMGuard.ps1` from `%USERPROFILE%\VMGuard`.
+**If you were using an earlier version** (1.0.x or the old PowerShell script), there is no need to uninstall it first: the installer removes the **VMGuard** scheduled task those versions used and stops the old copy. Afterwards you can delete `VMGuard.ps1` from `%USERPROFILE%\VMGuard`.
 
 ### Options
 
@@ -50,9 +51,10 @@ No administrator rights are needed. Reinstalling is safe: it stops the running c
 | `--no-tray` | Do not show the system tray icon. |
 | `--dry-run` | Test mode (see below). |
 | `--install` / `--uninstall` | Install or uninstall. |
+| `--quiet` | With `--install` / `--uninstall`: no confirmation message. |
 | `--help` | Show the help. |
 
-The options you pass along with `--install` are the ones the scheduled task uses. The threshold is saved in `VMGuard.ini` next to the exe, so you can also change it later from the tray icon; reinstalling without `--threshold` keeps the saved value. A `--threshold` passed when running VMGuard by hand wins over the saved value. The Spanish option names from earlier builds (`--umbral`, `--instalar`, ...) still work.
+The options you pass along with `--install` are the ones used at every sign-in. The threshold is saved in `VMGuard.ini` next to the exe, so you can also change it later from the tray icon; reinstalling without `--threshold` keeps the saved value. A `--threshold` passed when running VMGuard by hand wins over the saved value. The Spanish option names from earlier builds (`--umbral`, `--instalar`, ...) still work.
 
 ### Check that it is running
 
@@ -61,7 +63,7 @@ The VMGuard icon (a shield) should appear in the system tray, next to the clock.
 You can also check from PowerShell:
 
 ```powershell
-Get-ScheduledTask VMGuard | Select-Object State          # should say Running
+Get-Process VMGuard                                      # should list one process
 Get-Content $env:USERPROFILE\VMGuard\VMGuard.log -Tail 10
 ```
 
@@ -154,7 +156,7 @@ The log is written to `VMGuard.log`, next to the `VMGuard.exe` you ran.
 .\VMGuard.exe --uninstall
 ```
 
-This deletes the scheduled task and stops VMGuard. The `%USERPROFILE%\VMGuard` folder (program and log) is not deleted; you can remove it by hand.
+Or uninstall it from **Settings → Apps → Installed apps → VMGuard → Uninstall**. Either way it removes VMGuard from the startup apps and the Installed apps list, and stops it. The `%USERPROFILE%\VMGuard` folder (program, settings and log) is not deleted; you can remove it by hand.
 
 ## Antivirus false positives
 
@@ -201,10 +203,11 @@ The executable ends up in `src\VMGuard\bin\Release\net48\VMGuard.exe`. GitHub Ac
 | `src/VMGuard/GuardForm.cs` | Invisible window (shutdown notification), battery timer and tray icon. |
 | `src/VMGuard/VmSuspender.cs` | Lists and suspends VMs with `vmrun`, also in the background. |
 | `src/VMGuard/VmrunLocator.cs` | `vmrun.exe` detection. |
-| `src/VMGuard/Installer.cs` | Install and uninstall (scheduled task). |
+| `src/VMGuard/Installer.cs` | Install and uninstall. |
+| `src/VMGuard/Registration.cs` | Startup (`Run` key) and Installed apps entries, per user. |
 | `tests/VMGuard.Tests` | Unit tests. |
 
 ## Notes
 
-- The running copy lives in `%USERPROFILE%\VMGuard`. It is best kept outside synced folders (OneDrive, Dropbox, etc.) so syncing or "files on demand" don't interfere. For the same reason it is not installed under `AppData`: packaged (MSIX) apps see an isolated copy of that folder that Task Scheduler can't see.
-- `0x41301` as the task's last result means "currently running": that is expected.
+- The running copy lives in `%USERPROFILE%\VMGuard`. It is best kept outside synced folders (OneDrive, Dropbox, etc.) so syncing or "files on demand" don't interfere. For the same reason it is not installed under `AppData`: packaged (MSIX) apps see an isolated copy of that folder.
+- Everything is per user (`HKEY_CURRENT_USER`): the startup entry is the `VMGuard` value under `Software\Microsoft\Windows\CurrentVersion\Run`, and the Installed apps entry is `Software\Microsoft\Windows\CurrentVersion\Uninstall\VMGuard`.

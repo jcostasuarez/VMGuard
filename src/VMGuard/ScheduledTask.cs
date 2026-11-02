@@ -5,27 +5,10 @@ namespace VMGuard
 {
     /// <summary>
     /// Minimal wrapper over the Windows Task Scheduler API ("Schedule.Service"),
-    /// used to register VMGuard to start at sign-in for the current user.
+    /// used only to remove the "VMGuard" sign-in task that earlier versions created.
     /// </summary>
     internal static class ScheduledTask
     {
-        private const int TASK_CREATE_OR_UPDATE = 6;
-        private const int TASK_LOGON_INTERACTIVE_TOKEN = 3;
-
-        /// <summary>Creates or replaces the task from its XML definition.</summary>
-        public static void Register(string name, string xml)
-        {
-            dynamic folder = RootFolder();
-            folder.RegisterTask(name, xml, TASK_CREATE_OR_UPDATE, null, null, TASK_LOGON_INTERACTIVE_TOKEN, null);
-        }
-
-        /// <summary>Starts the task now. Does nothing if it does not exist.</summary>
-        public static void Run(string name)
-        {
-            dynamic task = Find(name);
-            if (task != null) task.Run(null);
-        }
-
         /// <summary>Stops the running instance of the task, if any.</summary>
         public static void Stop(string name)
         {

@@ -30,6 +30,15 @@ namespace VMGuard.Tests
         }
 
         [Fact]
+        public void ParsesQuiet()
+        {
+            var o = Options.Parse(new[] { "--uninstall", "--quiet" });
+            Assert.Equal(Command.Uninstall, o.Command);
+            Assert.True(o.Quiet);
+            Assert.False(Options.Parse(new string[0]).Quiet);
+        }
+
+        [Fact]
         public void AcceptsLegacySpanishNames()
         {
             var o = Options.Parse(new[] { "--instalar", "--umbral", "15", "--intervalo", "5", "--dryrun", "--sin-icono" });

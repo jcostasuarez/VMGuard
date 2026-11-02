@@ -27,6 +27,8 @@ namespace VMGuard
         public string VmrunPath { get; private set; } = "";
         public bool DryRun { get; private set; }
         public bool NoTrayIcon { get; private set; }
+        /// <summary>Install/uninstall without showing a message (errors are still shown).</summary>
+        public bool Quiet { get; private set; }
 
         public const string Usage =
             "VMGuard - suspends VMware Workstation VMs on shutdown or low battery\n" +
@@ -42,6 +44,7 @@ namespace VMGuard
             "  --vmrun PATH     path to vmrun.exe (detected automatically by default)\n" +
             "  --dry-run        test mode: log what would happen, never suspend\n" +
             "  --no-tray        do not show the system tray icon\n" +
+            "  --quiet          install/uninstall without the confirmation message\n" +
             "  --help           show this help";
 
         /// <summary>
@@ -85,6 +88,10 @@ namespace VMGuard
                     case "dryrun":
                     case "prueba":
                         o.DryRun = true;
+                        break;
+                    case "quiet":
+                    case "silent":
+                        o.Quiet = true;
                         break;
                     case "no-tray":
                     case "sin-icono":
