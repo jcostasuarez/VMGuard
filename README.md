@@ -10,7 +10,7 @@ VMware Workstation (probado con 17.6.4) no tiene una opción nativa para suspend
 ## Requisitos
 
 - Windows 10/11 con Windows PowerShell 5.1.
-- VMware Workstation instalado en la ruta por defecto (`C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe`). Si está en otra ruta, cambiá la variable `$vmrun` al principio de `VMGuard.ps1`.
+- VMware Workstation instalado. `VMGuard.ps1` busca `vmrun.exe` solo: primero en el registro de VMware (`InstallPath`), después en el `PATH` y por último en las carpetas por defecto de `Program Files`. Si no lo encuentra, lo anota en el log y se cierra; en ese caso indicá la ruta con `-VmrunPath` al instalar.
 
 ## Archivos
 
@@ -29,6 +29,8 @@ El script usa `vmrun.exe`:
 - `vmrun -T ws list` para ver qué VMs están encendidas.
 - `vmrun -T ws suspend "<ruta.vmx>"` para suspender cada una. Las suspende todas en paralelo y espera hasta 5 minutos.
 
+Al arrancar, el log muestra qué `vmrun.exe` encontró.
+
 ### Al apagar, reiniciar o cerrar sesión
 
 El script abre una ventana invisible que recibe el aviso de apagado de Windows (`WM_QUERYENDSESSION`). Cuando llega ese aviso:
@@ -42,6 +44,8 @@ El script abre una ventana invisible que recibe el aviso de apagado de Windows (
 ### Con batería baja
 
 Cada 30 segundos revisa el estado de la energía. Si el equipo está **desenchufado** y la batería está **en el umbral o por debajo** (10 % por defecto), suspende las VMs. Si encendés una VM de nuevo en esa situación, la vuelve a suspender en la siguiente revisión.
+
+Esta suspensión corre en segundo plano, así que la ventana invisible sigue atendiendo los avisos de Windows. Si apagás la PC mientras se están suspendiendo las VMs por batería, Windows muestra enseguida la pantalla de espera; VMGuard espera a que termine la suspensión en curso (sin lanzar otra sobre las mismas VMs) y después hace una pasada final por si quedó alguna encendida.
 
 Elegí un umbral por encima del nivel de batería crítica de tu plan de energía de Windows, para que las VMs se suspendan antes de que Windows actúe.
 
@@ -57,7 +61,7 @@ Desde la carpeta donde descargaste los scripts:
 powershell -ExecutionPolicy Bypass -File .\Instalar-VMGuard.ps1 -UmbralBateria 10
 ```
 
-`-UmbralBateria` es opcional (por defecto 10). Reinstalar es seguro: sobrescribe la copia y la tarea.
+`-UmbralBateria` es opcional (por defecto 10). `-VmrunPath "<ruta>\vmrun.exe"` también es opcional y solo hace falta si VMware está en una ruta que no se detecta sola. Reinstalar es seguro: sobrescribe la copia y la tarea.
 
 **Si modificás `VMGuard.ps1`**, volvé a correr el instalador para que la copia en ejecución se actualice:
 

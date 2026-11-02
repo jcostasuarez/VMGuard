@@ -1,14 +1,18 @@
 # Copia VMGuard.ps1 a %USERPROFILE%\VMGuard y crea una tarea programada
 # que lo arranca oculto cada vez que inicias sesion. No requiere admin.
-param([int]$UmbralBateria = 10)
+param(
+    [int]$UmbralBateria = 10,
+    [string]$VmrunPath = ''   # opcional: ruta a vmrun.exe si no se detecta sola
+)
 
 $dest = Join-Path $env:USERPROFILE 'VMGuard'
 New-Item -ItemType Directory -Force $dest | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'VMGuard.ps1') $dest -Force
 $script = Join-Path $dest 'VMGuard.ps1'
 
-$action   = New-ScheduledTaskAction -Execute 'powershell.exe' `
-            -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`" -UmbralBateria $UmbralBateria"
+$argumentos = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`" -UmbralBateria $UmbralBateria"
+if ($VmrunPath) { $argumentos += " -VmrunPath `"$VmrunPath`"" }
+$action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argumentos
 $trigger  = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
             -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
