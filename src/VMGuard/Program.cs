@@ -36,20 +36,20 @@ namespace VMGuard
                     MessageBox.Show(Options.Usage, "VMGuard", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return 0;
                 case Command.Install:
-                    return RunInstaller(() => Installer.Install(opt), "install");
+                    return RunInstaller(() => Installer.Install(opt), "install", opt.Quiet);
                 case Command.Uninstall:
-                    return RunInstaller(Installer.Uninstall, "uninstall");
+                    return RunInstaller(Installer.Uninstall, "uninstall", opt.Quiet);
                 default:
                     return RunGuard(opt);
             }
         }
 
-        private static int RunInstaller(Func<string> action, string verb)
+        private static int RunInstaller(Func<string> action, string verb, bool quiet)
         {
             try
             {
                 string msg = action();
-                MessageBox.Show(msg, "VMGuard", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (!quiet) MessageBox.Show(msg, "VMGuard", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return 0;
             }
             catch (Exception ex)
@@ -135,7 +135,7 @@ namespace VMGuard
             return 0;
         }
 
-        private static string Version =>
+        internal static string Version =>
             typeof(Program).Assembly.GetName().Version.ToString(3);
 
         private static void WaitForKey()
