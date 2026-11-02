@@ -11,10 +11,10 @@ namespace VMGuard.Tests
         [Fact]
         public void TaskXmlHasExpectedSettings()
         {
-            XDocument doc = Installer.BuildTaskXml(@"PC\usuario", @"C:\Users\usuario\VMGuard\VMGuard.exe", "--umbral 10 --intervalo 30", @"C:\Users\usuario\VMGuard");
+            XDocument doc = Installer.BuildTaskXml(@"PC\user", @"C:\Users\user\VMGuard\VMGuard.exe", "--threshold 10 --interval 30", @"C:\Users\user\VMGuard");
             XElement task = doc.Root;
 
-            Assert.Equal(@"PC\usuario", task.Descendants(Ns + "LogonTrigger").Single().Element(Ns + "UserId").Value);
+            Assert.Equal(@"PC\user", task.Descendants(Ns + "LogonTrigger").Single().Element(Ns + "UserId").Value);
             Assert.Equal("LeastPrivilege", task.Descendants(Ns + "RunLevel").Single().Value);
             Assert.Equal("false", task.Descendants(Ns + "DisallowStartIfOnBatteries").Single().Value);
             Assert.Equal("false", task.Descendants(Ns + "StopIfGoingOnBatteries").Single().Value);
@@ -22,8 +22,8 @@ namespace VMGuard.Tests
             Assert.Equal("IgnoreNew", task.Descendants(Ns + "MultipleInstancesPolicy").Single().Value);
 
             XElement exec = task.Descendants(Ns + "Exec").Single();
-            Assert.Equal(@"C:\Users\usuario\VMGuard\VMGuard.exe", exec.Element(Ns + "Command").Value);
-            Assert.Equal("--umbral 10 --intervalo 30", exec.Element(Ns + "Arguments").Value);
+            Assert.Equal(@"C:\Users\user\VMGuard\VMGuard.exe", exec.Element(Ns + "Command").Value);
+            Assert.Equal("--threshold 10 --interval 30", exec.Element(Ns + "Arguments").Value);
         }
     }
 }

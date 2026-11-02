@@ -1,196 +1,197 @@
 # VMGuard
 
-Suspende automáticamente todas las máquinas virtuales de **VMware Workstation** cuando:
+Automatically suspends every **VMware Workstation** virtual machine when:
 
-- Windows se **apaga, reinicia o cierra sesión**.
-- La **batería baja del 10 %** (configurable) con el equipo desenchufado.
+- Windows **shuts down, restarts or signs out**.
+- The **battery drops to 10 %** (configurable) while the computer is unplugged.
 
-VMware Workstation (probado con 17.6.4) no tiene una opción nativa para suspender las VMs al apagar el host: si Windows se apaga con VMs encendidas, se cierran de golpe o el apagado queda trabado. VMGuard soluciona eso.
+VMware Workstation (tested with 17.6.4) has no built-in option to suspend VMs when the host shuts down: if Windows shuts down with VMs running, they are powered off abruptly or the shutdown hangs. VMGuard fixes that.
 
-VMGuard es un único `VMGuard.exe` escrito en C#. No necesita instalar nada más: usa .NET Framework 4.8, que ya viene con Windows 10 y 11.
+VMGuard is a single `VMGuard.exe` written in C#. Nothing else needs to be installed: it uses .NET Framework 4.8, which ships with Windows 10 and 11.
 
-## Requisitos
+## Requirements
 
 - Windows 10/11.
-- VMware Workstation instalado. VMGuard busca `vmrun.exe` solo: primero en el registro de VMware (`InstallPath`), después en el `PATH` y por último en las carpetas por defecto de `Program Files`. Si no lo encuentra, lo anota en el log y se cierra; en ese caso indicá la ruta con `--vmrun` al instalar.
+- VMware Workstation. VMGuard finds `vmrun.exe` on its own: first in the VMware registry keys (`InstallPath`), then on the `PATH`, and finally in the default `Program Files` folders. If it cannot find it, it writes that to the log and exits; in that case, pass the path with `--vmrun` when installing.
 
-## Descargar
+## Download
 
-- **Versión publicada:** en la página de [Releases](../../releases) del repo, descargá `VMGuard.exe`.
-- **Última compilación:** en la pestaña [Actions](../../actions/workflows/build.yml), abrí la última ejecución correcta y descargá el artefacto `VMGuard` (es un `.zip` con el `.exe`).
+Get `VMGuard.exe` from the latest [release](../../releases/latest). The release also has a `.zip` (exe + README) and `SHA256SUMS.txt` with the file hashes.
 
-Si Windows SmartScreen avisa que el programa no es conocido (el `.exe` no está firmado), elegí *Más información → Ejecutar de todas formas*.
+The exe is not code-signed, so Windows SmartScreen may say the app is unrecognized. Choose *More info → Run anyway*.
 
-## Instalación
+Builds of every commit are available as the `VMGuard` artifact in the [Actions](../../actions/workflows/build.yml) tab.
 
-Desde la carpeta donde descargaste `VMGuard.exe`, en PowerShell o en `cmd`:
+## Install
+
+From the folder where you downloaded `VMGuard.exe`, in PowerShell or `cmd`:
 
 ```powershell
-.\VMGuard.exe --instalar --umbral 10
+.\VMGuard.exe --install --threshold 10
 ```
 
-Eso:
+This:
 
-1. Copia `VMGuard.exe` a `%USERPROFILE%\VMGuard`.
-2. Crea la tarea programada **VMGuard**, que lo arranca oculto cada vez que iniciás sesión.
-3. Lo arranca ya mismo y muestra un mensaje de confirmación.
+1. Copies `VMGuard.exe` to `%USERPROFILE%\VMGuard`.
+2. Creates the **VMGuard** scheduled task, which starts it hidden every time you sign in.
+3. Starts it right away and shows a confirmation message.
 
-No necesita permisos de administrador. Reinstalar es seguro: detiene la copia en ejecución, la reemplaza y actualiza la tarea. Para cambiar el umbral, volvé a instalar con otro valor.
+No administrator rights are needed. Reinstalling is safe: it stops the running copy, replaces it and updates the task. To change the threshold, install again with another value.
 
-**Si tenías la versión anterior en PowerShell**, no hace falta desinstalarla: el instalador reemplaza la tarea **VMGuard** y detiene el `VMGuard.ps1` que estuviera corriendo. Después podés borrar `VMGuard.ps1` de `%USERPROFILE%\VMGuard`.
+**If you were using the old PowerShell version**, there is no need to uninstall it first: the installer replaces the **VMGuard** task and stops `VMGuard.ps1` if it is running. Afterwards you can delete `VMGuard.ps1` from `%USERPROFILE%\VMGuard`.
 
-### Opciones
+### Options
 
-| Opción | Para qué sirve |
+| Option | What it does |
 |---|---|
-| `--umbral N` | % de batería para suspender (1 a 100, por defecto 10). |
-| `--intervalo N` | Segundos entre revisiones de la batería (por defecto 30). |
-| `--vmrun "<ruta>\vmrun.exe"` | Ruta a `vmrun.exe`, solo si no se detecta sola. |
-| `--sin-icono` | No mostrar el icono en la bandeja del sistema. |
-| `--dryrun` | Modo de prueba (ver más abajo). |
-| `--instalar` / `--desinstalar` | Instala o desinstala. |
-| `--ayuda` | Muestra la ayuda. |
+| `--threshold N` | Battery % at which VMs are suspended (1 to 100, default 10). |
+| `--interval N` | Seconds between battery checks (default 30). |
+| `--vmrun "<path>\vmrun.exe"` | Path to `vmrun.exe`, only needed if it is not detected. |
+| `--no-tray` | Do not show the system tray icon. |
+| `--dry-run` | Test mode (see below). |
+| `--install` / `--uninstall` | Install or uninstall. |
+| `--help` | Show the help. |
 
-Las opciones que pases junto a `--instalar` son las que usa la tarea programada.
+The options you pass along with `--install` are the ones the scheduled task uses. The Spanish option names from earlier builds (`--umbral`, `--instalar`, ...) still work.
 
-### Comprobar que está corriendo
+### Check that it is running
 
-Debería aparecer el icono de VMGuard (un escudo) en la bandeja del sistema, junto al reloj. Al pasar el mouse muestra la batería y el umbral. Si no lo ves, revisá en la flecha de iconos ocultos.
+The VMGuard icon (a shield) should appear in the system tray, next to the clock. Hovering over it shows the battery level and the threshold. If you don't see it, look under the hidden icons arrow.
 
-También podés comprobarlo desde PowerShell:
+You can also check from PowerShell:
 
 ```powershell
-Get-ScheduledTask VMGuard | Select-Object State          # debe decir Running
+Get-ScheduledTask VMGuard | Select-Object State          # should say Running
 Get-Content $env:USERPROFILE\VMGuard\VMGuard.log -Tail 10
 ```
 
-### Icono de la bandeja
+### Tray icon
 
-Clic derecho sobre el icono:
+Right-click the icon:
 
-- **Suspender VMs ahora:** suspende todas las VMs encendidas en el momento.
-- **Abrir log:** abre `VMGuard.log` en el Bloc de notas (también con doble clic).
-- **Salir de VMGuard:** lo cierra hasta el próximo inicio de sesión (pide confirmación).
+- **Suspend VMs now:** suspends every running VM right away.
+- **Open log:** opens `VMGuard.log` in Notepad (double-clicking the icon does the same).
+- **Exit VMGuard:** closes it until the next sign-in (asks for confirmation).
 
-Cuando VMGuard empieza a suspender VMs por batería baja, muestra una notificación.
+When VMGuard starts suspending VMs because of low battery, it shows a notification.
 
-## Cómo funciona
+## How it works
 
-VMGuard usa `vmrun.exe`:
+VMGuard uses `vmrun.exe`:
 
-- `vmrun -T ws list` para ver qué VMs están encendidas.
-- `vmrun -T ws suspend "<ruta.vmx>"` para suspender cada una. Las suspende todas en paralelo y espera hasta 5 minutos.
+- `vmrun -T ws list` to see which VMs are running.
+- `vmrun -T ws suspend "<path.vmx>"` to suspend each one. It suspends them all in parallel and waits up to 5 minutes.
 
-Al arrancar, el log muestra qué `vmrun.exe` encontró.
+At startup, the log shows which `vmrun.exe` was found.
 
-### Al apagar, reiniciar o cerrar sesión
+### On shutdown, restart or sign-out
 
-VMGuard tiene una ventana invisible que recibe el aviso de apagado de Windows (`WM_QUERYENDSESSION`), y le pide a Windows recibir ese aviso antes que la mayoría de los programas. Cuando llega:
+VMGuard has an invisible window that receives the Windows shutdown notification (`WM_QUERYENDSESSION`), and asks Windows to send it that notification before most other programs. When it arrives:
 
-1. Retiene el apagado con `ShutdownBlockReasonCreate`. Windows muestra la pantalla de espera con el mensaje *"Suspendiendo maquinas virtuales VMware..."*.
-2. Suspende todas las VMs.
-3. Libera el apagado, y Windows continúa con el apagado o reinicio que habías pedido.
+1. It holds the shutdown with `ShutdownBlockReasonCreate`. Windows shows the waiting screen with the message *"Suspending VMware virtual machines..."*.
+2. It suspends every VM.
+3. It releases the shutdown, and Windows continues with the shutdown or restart you asked for.
 
-> ⚠️ **No toques "Apagar de todos modos"** en esa pantalla, porque Windows mata los procesos y las VMs se cierran sin suspenderse.
+> ⚠️ **Don't click "Shut down anyway"** on that screen: Windows kills the processes and the VMs are powered off without being suspended.
 
-### Con batería baja
+### On low battery
 
-Cada 30 segundos (o lo que indique `--intervalo`) revisa el estado de la energía. Si el equipo está **desenchufado** y la batería está **en el umbral o por debajo**, suspende las VMs. Si encendés una VM de nuevo en esa situación, la vuelve a suspender en la siguiente revisión.
+Every 30 seconds (or whatever `--interval` says) it checks the power status. If the computer is **unplugged** and the battery is **at or below the threshold**, it suspends the VMs. If you start a VM again in that state, it suspends it again on the next check.
 
-Esta suspensión corre en segundo plano, así que la ventana invisible sigue atendiendo los avisos de Windows. Si apagás la PC mientras se están suspendiendo las VMs por batería, Windows muestra enseguida la pantalla de espera; VMGuard espera a que termine la suspensión en curso (sin lanzar otra sobre las mismas VMs) y después hace una pasada final por si quedó alguna encendida.
+This suspend runs in the background, so the invisible window keeps handling Windows notifications. If you shut down the PC while VMs are being suspended because of low battery, Windows shows the waiting screen right away; VMGuard waits for the suspend in progress to finish (without starting another one on the same VMs) and then does a final pass in case a VM is still running.
 
-Elegí un umbral por encima del nivel de batería crítica de tu plan de energía de Windows, para que las VMs se suspendan antes de que Windows actúe.
+Pick a threshold above the critical battery level of your Windows power plan, so the VMs are suspended before Windows acts.
 
 ### Log
 
-Todo queda registrado en `VMGuard.log`, junto al `VMGuard.exe` que se ejecuta (`%USERPROFILE%\VMGuard\VMGuard.log` en la copia instalada): el inicio, cada suspensión con el código de salida de `vmrun` (`exit 0` = OK) y los errores.
+Everything is logged to `VMGuard.log`, next to the `VMGuard.exe` that is running (`%USERPROFILE%\VMGuard\VMGuard.log` for the installed copy): startup, each suspend with the `vmrun` exit code (`exit 0` = OK) and any errors.
 
-## Probarlo
+## Testing it
 
-Con una VM encendida, reiniciá la PC. Al volver a entrar, la VM debería estar suspendida y el log debería mostrar:
+With a VM running, restart the PC. When you sign back in, the VM should be suspended and the log should show:
 
 ```
-... Apagado/cierre de sesion -> suspendiendo 1 VM(s)
-...   <ruta-a-tu-vm>.vmx -> exit 0
+... Shutdown/sign-out -> suspending 1 VM(s)
+...   <path-to-your-vm>.vmx -> exit 0
 ```
 
-### Modo de prueba (`--dryrun`)
+### Dry-run mode (`--dry-run`)
 
-Para ver qué haría VMGuard sin suspender nada:
+To see what VMGuard would do without suspending anything:
 
 ```powershell
-.\VMGuard.exe --dryrun
+.\VMGuard.exe --dry-run
 ```
 
-En modo de prueba:
+In dry-run mode:
 
-- Se abre una consola donde se ven los mensajes. Para salir, cerrá esa consola.
-- **Nunca** ejecuta `vmrun suspend`. Solo usa `vmrun -T ws list` para ver qué VMs están encendidas.
-- Cada línea del log lleva el prefijo `[DRYRUN]`.
-- Al arrancar registra el estado actual: porcentaje de batería, si está enchufado y qué VMs están encendidas.
-- Cuando se cumple una condición (batería baja, aviso de apagado o *Suspender VMs ahora* en el icono), registra el motivo y cada VM que se suspendería.
-- Puede correr al mismo tiempo que la copia instalada sin chocar con ella.
+- A console opens where you can see the messages. To exit, close that console.
+- It **never** runs `vmrun suspend`. It only uses `vmrun -T ws list` to see which VMs are running.
+- Every log line is prefixed with `[DRYRUN]`.
+- At startup it logs the current state: battery percentage, whether it is plugged in, and which VMs are running.
+- When a condition is met (low battery, shutdown notification or *Suspend VMs now* in the tray), it logs the reason and each VM that would be suspended.
+- It can run alongside the installed copy without clashing with it.
 
-Para probar la batería baja sin esperar a que se descargue, subí el umbral y desenchufá el equipo:
+To test low battery without waiting for it to drain, raise the threshold and unplug the computer:
 
 ```powershell
-.\VMGuard.exe --dryrun --umbral 100 --intervalo 5
+.\VMGuard.exe --dry-run --threshold 100 --interval 5
 ```
 
-La consola debería mostrar algo así:
+The console should show something like:
 
 ```
-... [DRYRUN] Bateria baja (87%, desenchufado, umbral 100%) -> se suspenderian 1 VM(s)
-... [DRYRUN]   <ruta-a-tu-vm>.vmx -> (no suspendida, modo prueba)
+... [DRYRUN] Low battery (87%, unplugged, threshold 100%) -> would suspend 1 VM(s)
+... [DRYRUN]   <path-to-your-vm>.vmx -> (not suspended, dry run)
 ```
 
-El log se escribe en `VMGuard.log`, junto al `VMGuard.exe` que ejecutaste.
+The log is written to `VMGuard.log`, next to the `VMGuard.exe` you ran.
 
-## Desinstalación
+## Uninstall
 
 ```powershell
-.\VMGuard.exe --desinstalar
+.\VMGuard.exe --uninstall
 ```
 
-Borra la tarea programada y detiene VMGuard. La carpeta `%USERPROFILE%\VMGuard` (programa y log) no se borra; podés eliminarla a mano.
+This deletes the scheduled task and stops VMGuard. The `%USERPROFILE%\VMGuard` folder (program and log) is not deleted; you can remove it by hand.
 
-## Respaldo recomendado: hibernación
+## Recommended fallback: hibernation
 
-Si la batería se agota sin que VMGuard llegue a actuar, la hibernación es la red de seguridad: la PC hiberna con las VMs tal como estaban. Revisá si está disponible con `powercfg /a` y, si no lo está, activala en una consola **como administrador**:
+If the battery runs out before VMGuard can act, hibernation is the safety net: the PC hibernates with the VMs as they were. Check whether it is available with `powercfg /a` and, if it isn't, enable it from an **administrator** console:
 
 ```powershell
 powercfg /h on
 ```
 
-Después configurá **"Hibernar"** como acción de batería crítica en las opciones avanzadas del plan de energía.
+Then set **"Hibernate"** as the critical battery action in the power plan's advanced settings.
 
-## Limitaciones
+## Limitations
 
-- Un **apagado forzado** (mantener el botón de encendido, corte de luz, batería agotada sin hibernación) no le da tiempo a ningún programa.
-- Si alguien pulsa **"Apagar de todos modos"**, las VMs se cierran sin suspenderse.
-- Solo ve las VMs del **usuario que inició sesión** (`vmrun -T ws`), que es lo normal en VMware Workstation.
+- A **forced power-off** (holding the power button, a power cut, the battery running out without hibernation) gives no program any time.
+- If someone clicks **"Shut down anyway"**, the VMs are powered off without being suspended.
+- It only sees the VMs of the **signed-in user** (`vmrun -T ws`), which is the normal case with VMware Workstation.
 
-## Compilar desde el código
+## Building from source
 
-Hace falta el [SDK de .NET 8](https://dotnet.microsoft.com/download) (solo para compilar; el `.exe` resultante usa .NET Framework 4.8).
+You need the [.NET 8 SDK](https://dotnet.microsoft.com/download) (only to build; the resulting `.exe` uses .NET Framework 4.8).
 
 ```powershell
 dotnet build VMGuard.sln -c Release
 dotnet test VMGuard.sln -c Release
 ```
 
-El ejecutable queda en `src\VMGuard\bin\Release\net48\VMGuard.exe`. GitHub Actions compila y corre los tests en cada push y pull request; al subir un tag `v*` publica el `.exe` en Releases.
+The executable ends up in `src\VMGuard\bin\Release\net48\VMGuard.exe`. GitHub Actions builds and runs the tests on every push and pull request; pushing a `v*` tag publishes a release with the Windows assets.
 
-| Archivo | Para qué sirve |
+| File | Purpose |
 |---|---|
-| `src/VMGuard/Program.cs` | Punto de entrada: opciones, instancia única, arranque. |
-| `src/VMGuard/GuardForm.cs` | Ventana invisible (aviso de apagado), temporizador de batería e icono de la bandeja. |
-| `src/VMGuard/VmSuspender.cs` | Lista y suspende las VMs con `vmrun`, también en segundo plano. |
-| `src/VMGuard/VmrunLocator.cs` | Detección de `vmrun.exe`. |
-| `src/VMGuard/Installer.cs` | Instalación y desinstalación (tarea programada). |
-| `tests/VMGuard.Tests` | Tests unitarios. |
+| `src/VMGuard/Program.cs` | Entry point: options, single instance, startup. |
+| `src/VMGuard/GuardForm.cs` | Invisible window (shutdown notification), battery timer and tray icon. |
+| `src/VMGuard/VmSuspender.cs` | Lists and suspends VMs with `vmrun`, also in the background. |
+| `src/VMGuard/VmrunLocator.cs` | `vmrun.exe` detection. |
+| `src/VMGuard/Installer.cs` | Install and uninstall (scheduled task). |
+| `tests/VMGuard.Tests` | Unit tests. |
 
-## Notas
+## Notes
 
-- La copia que se ejecuta queda en `%USERPROFILE%\VMGuard`. Conviene que esté fuera de carpetas sincronizadas (OneDrive, Dropbox, etc.) para que la sincronización o los "archivos a petición" no interfieran. Por el mismo motivo no se instala en `AppData`: las apps empaquetadas (MSIX) ven una copia aislada de esa carpeta que el Programador de tareas no ve.
-- `0x41301` en el resultado de la tarea significa "en ejecución": es lo esperado.
+- The running copy lives in `%USERPROFILE%\VMGuard`. It is best kept outside synced folders (OneDrive, Dropbox, etc.) so syncing or "files on demand" don't interfere. For the same reason it is not installed under `AppData`: packaged (MSIX) apps see an isolated copy of that folder that Task Scheduler can't see.
+- `0x41301` as the task's last result means "currently running": that is expected.
