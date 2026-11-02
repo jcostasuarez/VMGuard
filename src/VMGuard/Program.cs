@@ -64,6 +64,11 @@ namespace VMGuard
             string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
             var log = new Logger(Path.Combine(exeDir, "VMGuard.log"), opt.DryRun);
 
+            // Threshold: command line, else the saved setting (changed from the tray), else the default
+            var settings = Settings.Load(exeDir);
+            if (!opt.ThresholdGiven && settings.BatteryThreshold.HasValue)
+                opt.BatteryThreshold = settings.BatteryThreshold.Value;
+
             if (opt.DryRun)
             {
                 // Dry run: own console to show the messages. Closing it ends VMGuard.
@@ -109,7 +114,7 @@ namespace VMGuard
                     log.Write("VMGuard " + Version + " started (battery threshold " + opt.BatteryThreshold +
                               "%, interval " + opt.IntervalSeconds + " s, vmrun: " + vmrun + ")");
 
-                using (var form = new GuardForm(opt, log, suspender))
+                using (var form = new GuardForm(opt, log, suspender, settings))
                 using (var exitEvent = opt.DryRun ? null : SingleInstance.CreateExitEvent())
                 {
                     // The installer signals this event to replace or remove this copy cleanly

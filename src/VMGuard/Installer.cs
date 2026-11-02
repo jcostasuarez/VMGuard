@@ -34,12 +34,21 @@ namespace VMGuard
             if (!SamePath(self, InstalledExe))
                 CopyWithRetry(self, InstalledExe);
 
+            // The threshold is kept in the settings file; reinstalling without --threshold keeps it
+            var settings = Settings.Load(InstallDir);
+            if (opt.ThresholdGiven || settings.BatteryThreshold == null)
+            {
+                settings.BatteryThreshold = opt.BatteryThreshold;
+                settings.Save();
+            }
+            int threshold = settings.BatteryThreshold.Value;
+
             string user = WindowsIdentity.GetCurrent().Name;
             string xml = BuildTaskXml(user, InstalledExe, opt.ToRunArguments(), InstallDir).ToString();
             ScheduledTask.Register(TaskName, xml);
 
             string msg = "VMGuard is installed.\n\n" +
-                         "Battery threshold: " + opt.BatteryThreshold + "%\n" +
+                         "Battery threshold: " + threshold + "% (you can change it from the tray icon)\n" +
                          "Program: " + InstalledExe + "\n" +
                          "Log: " + Path.Combine(InstallDir, "VMGuard.log");
             if (stopped)
