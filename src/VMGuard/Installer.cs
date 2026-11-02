@@ -1,12 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Management;
 using System.Security.Principal;
-using System.Text;
-using System.Xml;
 using System.Xml.Linq;
 
 namespace VMGuard
@@ -31,39 +26,45 @@ namespace VMGuard
             string self = Process.GetCurrentProcess().MainModule.FileName;
             Directory.CreateDirectory(InstallDir);
 
-            // Stop the previous version (exe or PowerShell script) before replacing it
-            RunSchtasks("/End /TN " + TaskName, ignoreErrors: true);
-            StopRunningInstances();
+            // Stop the previous version before replacing it: first the scheduled task
+            // (this also covers the old PowerShell version), then any copy started by hand.
+            ScheduledTask.Stop(TaskName);
+            bool stopped = SingleInstance.RequestExitAndWait(TimeSpan.FromSeconds(15));
 
             if (!SamePath(self, InstalledExe))
                 CopyWithRetry(self, InstalledExe);
 
-            string user = WindowsIdentity.GetCurrent().Name;
-            string xmlPath = Path.Combine(Path.GetTempPath(), "VMGuard-task-" + Guid.NewGuid().ToString("N") + ".xml");
-            try
+            // The threshold is kept in the settings file; reinstalling without --threshold keeps it
+            var settings = Settings.Load(InstallDir);
+            if (opt.ThresholdGiven || settings.BatteryThreshold == null)
             {
-                using (var w = XmlWriter.Create(xmlPath, new XmlWriterSettings { Encoding = Encoding.Unicode, Indent = true }))
-                    BuildTaskXml(user, InstalledExe, opt.ToRunArguments(), InstallDir).Save(w);
-                RunSchtasks("/Create /F /TN " + TaskName + " /XML " + Options.Quote(xmlPath), ignoreErrors: false);
+                settings.BatteryThreshold = opt.BatteryThreshold;
+                settings.Save();
             }
-            finally
-            {
-                try { File.Delete(xmlPath); } catch { }
-            }
-            RunSchtasks("/Run /TN " + TaskName, ignoreErrors: false);
+            int threshold = settings.BatteryThreshold.Value;
 
-            return "VMGuard is installed and running.\n\n" +
-                   "Battery threshold: " + opt.BatteryThreshold + "%\n" +
-                   "Program: " + InstalledExe + "\n" +
-                   "Log: " + Path.Combine(InstallDir, "VMGuard.log");
+            string user = WindowsIdentity.GetCurrent().Name;
+            string xml = BuildTaskXml(user, InstalledExe, opt.ToRunArguments(), InstallDir).ToString();
+            ScheduledTask.Register(TaskName, xml);
+
+            string msg = "VMGuard is installed.\n\n" +
+                         "Battery threshold: " + threshold + "% (you can change it from the tray icon)\n" +
+                         "Program: " + InstalledExe + "\n" +
+                         "Log: " + Path.Combine(InstallDir, "VMGuard.log");
+            if (stopped)
+            {
+                ScheduledTask.Run(TaskName);
+                return msg + "\n\nIt is running now and will start every time you sign in.";
+            }
+            return msg + "\n\nAnother VMGuard is still running, so the new version will start the next time you sign in.";
         }
 
         /// <summary>Uninstalls: deletes the task and stops VMGuard. The folder and the log are kept.</summary>
         public static string Uninstall()
         {
-            RunSchtasks("/End /TN " + TaskName, ignoreErrors: true);
-            RunSchtasks("/Delete /F /TN " + TaskName, ignoreErrors: true);
-            StopRunningInstances();
+            ScheduledTask.Stop(TaskName);
+            ScheduledTask.Delete(TaskName);
+            SingleInstance.RequestExitAndWait(TimeSpan.FromSeconds(15));
             return "VMGuard is uninstalled.\n\nThe folder " + InstallDir + " (program and log) is not deleted; you can remove it by hand.";
         }
 
@@ -102,57 +103,6 @@ namespace VMGuard
                             new XElement(ns + "WorkingDirectory", workingDir)))));
         }
 
-        /// <summary>
-        /// Stops other VMGuard.exe instances in this session, and the VMGuard.ps1 from the
-        /// previous PowerShell version if it is still running.
-        /// </summary>
-        private static void StopRunningInstances()
-        {
-            int self = Process.GetCurrentProcess().Id;
-            int session = Process.GetCurrentProcess().SessionId;
-            var toWait = new List<Process>();
-
-            foreach (Process p in Process.GetProcessesByName("VMGuard"))
-            {
-                if (p.Id == self || p.SessionId != session) { p.Dispose(); continue; }
-                try { p.Kill(); toWait.Add(p); } catch { p.Dispose(); }
-            }
-
-            try
-            {
-                using (var searcher = new ManagementObjectSearcher(
-                    "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'powershell.exe' OR Name = 'pwsh.exe'"))
-                {
-                    foreach (ManagementObject mo in searcher.Get().Cast<ManagementObject>())
-                    {
-                        using (mo)
-                        {
-                            string cmd = mo["CommandLine"] as string;
-                            if (cmd == null || cmd.IndexOf(@"\VMGuard\VMGuard.ps1", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                            try
-                            {
-                                var p = Process.GetProcessById(Convert.ToInt32(mo["ProcessId"]));
-                                if (p.SessionId != session) { p.Dispose(); continue; }
-                                p.Kill();
-                                toWait.Add(p);
-                            }
-                            catch { }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // WMI unavailable: not critical
-            }
-
-            foreach (Process p in toWait)
-            {
-                try { p.WaitForExit(10000); } catch { }
-                p.Dispose();
-            }
-        }
-
         private static void CopyWithRetry(string from, string to)
         {
             for (int i = 0; ; i++)
@@ -172,25 +122,5 @@ namespace VMGuard
 
         private static bool SamePath(string a, string b) =>
             string.Equals(Path.GetFullPath(a).TrimEnd('\\'), Path.GetFullPath(b).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase);
-
-        private static void RunSchtasks(string arguments, bool ignoreErrors)
-        {
-            var psi = new ProcessStartInfo("schtasks.exe", arguments)
-            {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-            using (var p = Process.Start(psi))
-            {
-                var err = p.StandardError.ReadToEndAsync();
-                string output = p.StandardOutput.ReadToEnd();
-                p.WaitForExit();
-                if (p.ExitCode != 0 && !ignoreErrors)
-                    throw new InvalidOperationException("schtasks " + arguments.Split(' ')[0] + " failed (" + p.ExitCode + "): " +
-                                                        (err.Result + " " + output).Trim());
-            }
-        }
     }
 }

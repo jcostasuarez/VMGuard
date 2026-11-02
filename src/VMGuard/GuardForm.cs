@@ -23,9 +23,14 @@ namespace VMGuard
         private readonly VmSuspender _suspender;
         private readonly Timer _timer;
         private readonly NotifyIcon _tray;
+        private readonly Settings _settings;
 
-        public GuardForm(Options opt, Logger log, VmSuspender suspender)
+        /// <summary>Thresholds offered directly in the tray menu.</summary>
+        internal static readonly int[] PresetThresholds = { 5, 10, 15, 20, 25, 30, 40, 50 };
+
+        public GuardForm(Options opt, Logger log, VmSuspender suspender, Settings settings)
         {
+            _settings = settings;
             _opt = opt;
             _log = log;
             _suspender = suspender;
@@ -33,9 +38,6 @@ namespace VMGuard
             Text = "VMGuard";
             ShowInTaskbar = false;
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
-            StartPosition = FormStartPosition.Manual;
-            Location = new Point(-32000, -32000);
-            Size = new Size(1, 1);
             Opacity = 0;
 
             _timer = new Timer { Interval = opt.IntervalSeconds * 1000 };
@@ -138,6 +140,7 @@ namespace VMGuard
                 else if (!_suspender.StartBackground("Manual (tray menu)"))
                     _tray.ShowBalloonTip(3000, "VMGuard", "A suspend is already in progress.", ToolTipIcon.Info);
             });
+            menu.Items.Add(CreateThresholdMenu());
             menu.Items.Add("Open log", null, (s, e) => OpenLog());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Exit VMGuard", null, (s, e) =>
@@ -154,13 +157,77 @@ namespace VMGuard
 
             var icon = new NotifyIcon
             {
-                Icon = SystemIcons.Shield,
+                Icon = AppIcon(),
                 Text = "VMGuard",
                 ContextMenuStrip = menu,
                 Visible = true,
             };
             icon.DoubleClick += (s, e) => OpenLog();
             return icon;
+        }
+
+        private ToolStripMenuItem CreateThresholdMenu()
+        {
+            var root = new ToolStripMenuItem("Battery threshold");
+            foreach (int t in PresetThresholds)
+            {
+                int value = t;
+                root.DropDownItems.Add(new ToolStripMenuItem(value + "%", null, (s, e) => SetThreshold(value)) { Tag = value });
+            }
+            root.DropDownItems.Add(new ToolStripSeparator());
+            var custom = new ToolStripMenuItem("Custom...", null, (s, e) =>
+            {
+                using (var dlg = new ThresholdDialog(_opt.BatteryThreshold))
+                {
+                    if (dlg.ShowDialog() == DialogResult.OK) SetThreshold(dlg.Value);
+                }
+            });
+            root.DropDownItems.Add(custom);
+
+            // Check the current value every time the submenu opens
+            root.DropDownOpening += (s, e) =>
+            {
+                bool preset = false;
+                foreach (ToolStripItem item in root.DropDownItems)
+                {
+                    if (item is ToolStripMenuItem mi && mi.Tag is int v)
+                    {
+                        mi.Checked = v == _opt.BatteryThreshold;
+                        preset |= mi.Checked;
+                    }
+                }
+                custom.Checked = !preset;
+                custom.Text = preset ? "Custom..." : "Custom (" + _opt.BatteryThreshold + "%)...";
+            };
+            return root;
+        }
+
+        /// <summary>Changes the threshold right away and saves it (except in dry-run mode).</summary>
+        private void SetThreshold(int value)
+        {
+            if (value == _opt.BatteryThreshold) return;
+            int old = _opt.BatteryThreshold;
+            _opt.BatteryThreshold = value;
+
+            if (_opt.DryRun)
+            {
+                _log.Write("Battery threshold changed from the tray: " + old + "% -> " + value + "% (not saved in dry-run mode)");
+            }
+            else
+            {
+                try
+                {
+                    _settings.BatteryThreshold = value;
+                    _settings.Save();
+                    _log.Write("Battery threshold changed from the tray: " + old + "% -> " + value + "% (saved)");
+                }
+                catch (Exception ex)
+                {
+                    _log.Write("Battery threshold changed from the tray: " + old + "% -> " + value + "%, but it could not be saved: " + ex.Message);
+                }
+            }
+            // Apply it now instead of waiting for the next check
+            CheckBattery(false);
         }
 
         private void UpdateTrayText(PowerStatus ps, int pct, bool hasBattery)
@@ -198,6 +265,12 @@ namespace VMGuard
             {
                 _log.Write("ERROR opening the log: " + ex.Message);
             }
+        }
+
+        private static Icon AppIcon()
+        {
+            try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Shield; }
+            catch { return SystemIcons.Shield; }
         }
 
         protected override void Dispose(bool disposing)

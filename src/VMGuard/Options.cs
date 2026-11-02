@@ -20,7 +20,9 @@ namespace VMGuard
         public const int DefaultInterval = 30;
 
         public Command Command { get; private set; } = Command.Run;
-        public int BatteryThreshold { get; private set; } = DefaultThreshold;
+        public int BatteryThreshold { get; set; } = DefaultThreshold;
+        /// <summary>The threshold was given on the command line (it then wins over the saved setting).</summary>
+        public bool ThresholdGiven { get; private set; }
         public int IntervalSeconds { get; private set; } = DefaultInterval;
         public string VmrunPath { get; private set; } = "";
         public bool DryRun { get; private set; }
@@ -93,6 +95,7 @@ namespace VMGuard
                     case "umbral":
                     case "umbralbateria":
                         o.BatteryThreshold = ParseInt(raw, value ?? Next(args, ref i, raw), 1, 100);
+                        o.ThresholdGiven = true;
                         break;
                     case "interval":
                     case "intervalo":
@@ -110,12 +113,14 @@ namespace VMGuard
             return o;
         }
 
-        /// <summary>Arguments to relaunch VMGuard with these same options (without the command).</summary>
+        /// <summary>
+        /// Arguments for the scheduled task (without the command). The threshold is not
+        /// included: it lives in the settings file so it can be changed from the tray icon.
+        /// </summary>
         public string ToRunArguments()
         {
             var sb = new StringBuilder();
-            sb.Append("--threshold ").Append(BatteryThreshold.ToString(CultureInfo.InvariantCulture));
-            sb.Append(" --interval ").Append(IntervalSeconds.ToString(CultureInfo.InvariantCulture));
+            sb.Append("--interval ").Append(IntervalSeconds.ToString(CultureInfo.InvariantCulture));
             if (!string.IsNullOrEmpty(VmrunPath)) sb.Append(" --vmrun ").Append(Quote(VmrunPath));
             if (NoTrayIcon) sb.Append(" --no-tray");
             return sb.ToString();

@@ -73,8 +73,12 @@ namespace VMGuard.Tests
         {
             var o = Options.Parse(new[] { "--install", "--threshold", "12", "--vmrun", @"C:\Program Files\VMware\vmrun.exe", "--no-tray" });
             string args = o.ToRunArguments();
-            Assert.Equal(@"--threshold 12 --interval 30 --vmrun ""C:\Program Files\VMware\vmrun.exe"" --no-tray", args);
+            Assert.Equal(@"--interval 30 --vmrun ""C:\Program Files\VMware\vmrun.exe"" --no-tray", args);
             Assert.DoesNotContain("install", args);
+            // The threshold lives in VMGuard.ini so the tray icon can change it
+            Assert.DoesNotContain("threshold", args);
+            Assert.True(o.ThresholdGiven);
+            Assert.False(Options.Parse(new string[0]).ThresholdGiven);
         }
 
         [Theory]

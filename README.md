@@ -36,7 +36,7 @@ This:
 2. Creates the **VMGuard** scheduled task, which starts it hidden every time you sign in.
 3. Starts it right away and shows a confirmation message.
 
-No administrator rights are needed. Reinstalling is safe: it stops the running copy, replaces it and updates the task. To change the threshold, install again with another value.
+No administrator rights are needed. Reinstalling is safe: it stops the running copy, replaces it and updates the task. To change the threshold, use the tray icon (or install again with another value).
 
 **If you were using the old PowerShell version**, there is no need to uninstall it first: the installer replaces the **VMGuard** task and stops `VMGuard.ps1` if it is running. Afterwards you can delete `VMGuard.ps1` from `%USERPROFILE%\VMGuard`.
 
@@ -44,7 +44,7 @@ No administrator rights are needed. Reinstalling is safe: it stops the running c
 
 | Option | What it does |
 |---|---|
-| `--threshold N` | Battery % at which VMs are suspended (1 to 100, default 10). |
+| `--threshold N` | Battery % at which VMs are suspended (1 to 100, default 10). Can also be changed from the tray icon. |
 | `--interval N` | Seconds between battery checks (default 30). |
 | `--vmrun "<path>\vmrun.exe"` | Path to `vmrun.exe`, only needed if it is not detected. |
 | `--no-tray` | Do not show the system tray icon. |
@@ -52,7 +52,7 @@ No administrator rights are needed. Reinstalling is safe: it stops the running c
 | `--install` / `--uninstall` | Install or uninstall. |
 | `--help` | Show the help. |
 
-The options you pass along with `--install` are the ones the scheduled task uses. The Spanish option names from earlier builds (`--umbral`, `--instalar`, ...) still work.
+The options you pass along with `--install` are the ones the scheduled task uses. The threshold is saved in `VMGuard.ini` next to the exe, so you can also change it later from the tray icon; reinstalling without `--threshold` keeps the saved value. A `--threshold` passed when running VMGuard by hand wins over the saved value. The Spanish option names from earlier builds (`--umbral`, `--instalar`, ...) still work.
 
 ### Check that it is running
 
@@ -70,6 +70,7 @@ Get-Content $env:USERPROFILE\VMGuard\VMGuard.log -Tail 10
 Right-click the icon:
 
 - **Suspend VMs now:** suspends every running VM right away.
+- **Battery threshold:** pick 5 % to 50 %, or *Custom...* for any value from 1 to 100. The change applies right away and is saved, so it is kept after restarting.
 - **Open log:** opens `VMGuard.log` in Notepad (double-clicking the icon does the same).
 - **Exit VMGuard:** closes it until the next sign-in (asks for confirmation).
 
@@ -100,7 +101,7 @@ Every 30 seconds (or whatever `--interval` says) it checks the power status. If 
 
 This suspend runs in the background, so the invisible window keeps handling Windows notifications. If you shut down the PC while VMs are being suspended because of low battery, Windows shows the waiting screen right away; VMGuard waits for the suspend in progress to finish (without starting another one on the same VMs) and then does a final pass in case a VM is still running.
 
-Pick a threshold above the critical battery level of your Windows power plan, so the VMs are suspended before Windows acts.
+You can change the threshold from the tray icon at any time. Pick a threshold above the critical battery level of your Windows power plan, so the VMs are suspended before Windows acts.
 
 ### Log
 
@@ -154,6 +155,18 @@ The log is written to `VMGuard.log`, next to the `VMGuard.exe` you ran.
 ```
 
 This deletes the scheduled task and stops VMGuard. The `%USERPROFILE%\VMGuard` folder (program and log) is not deleted; you can remove it by hand.
+
+## Antivirus false positives
+
+VMGuard is a small, unsigned program that starts at sign-in and holds back Windows shutdown for a moment, which is also what some malware does. Because of that, antivirus heuristics (for example Microsoft Defender's machine-learning detections ending in `!ml`, such as `Trojan:Win32/Bearfoos.A!ml`) can flag it by mistake. Release 1.0.1 avoids the patterns most likely to trigger this: it no longer kills processes or calls `schtasks.exe`, and the exe has an icon and full version information.
+
+If Defender still flags it:
+
+1. Check that the file is the one from the release: `Get-FileHash .\VMGuard.exe` must match `SHA256SUMS.txt`.
+2. Report it as a false positive at the [Microsoft file submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission): sign in, choose *Home customer* (or *Software developer*), product *Microsoft Defender Antivirus*, upload `VMGuard.exe`, select *Incorrectly detected as malware/malicious* and enter the detection name. Microsoft usually updates its definitions within a few days.
+3. Meanwhile, you can restore it from *Windows Security → Virus & threat protection → Protection history* and choose *Allow on device*.
+
+Code-signing the exe would make these detections much less likely; it needs a code-signing certificate (for example through Azure Trusted Signing or SignPath's free plan for open-source projects).
 
 ## Recommended fallback: hibernation
 
