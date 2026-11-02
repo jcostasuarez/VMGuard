@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Tag to publish as a release (e.g. v1.0.0). Leave empty to only build.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -28,8 +33,11 @@ jobs:
 
       - name: Package
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release }}
         run: |
-          $version = if ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF_NAME.TrimStart('v') } else { 'dev' }
+          $tag = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } elseif ($env:GITHUB_REF -like 'refs/tags/v*') { $env:GITHUB_REF_NAME } else { '' }
+          $version = if ($tag) { $tag.TrimStart('v') } else { 'dev' }
           New-Item -ItemType Directory -Force dist, pkg | Out-Null
           Copy-Item src/VMGuard/bin/Release/net48/VMGuard.exe dist/
           Copy-Item dist/VMGuard.exe, README.md pkg/
@@ -46,9 +54,12 @@ jobs:
           path: dist/*
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release != ''
         uses: softprops/action-gh-release@v2
         with:
+          # On a manual run the tag is created on the commit that was built
+          tag_name: ${{ github.event.inputs.release || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: dist/*
           generate_release_notes: true
           body: |

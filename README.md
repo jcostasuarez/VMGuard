@@ -180,7 +180,7 @@ dotnet build VMGuard.sln -c Release
 dotnet test VMGuard.sln -c Release
 ```
 
-The executable ends up in `src\VMGuard\bin\Release\net48\VMGuard.exe`. GitHub Actions builds and runs the tests on every push and pull request; pushing a `v*` tag publishes a release with the Windows assets.
+The executable ends up in `src\VMGuard\bin\Release\net48\VMGuard.exe`. GitHub Actions builds and runs the tests on every push and pull request. To publish a release with the Windows assets, push a `v*` tag or run the **Build** workflow by hand with the tag name (e.g. `v1.0.1`) in the `release` field.
 
 | File | Purpose |
 |---|---|
