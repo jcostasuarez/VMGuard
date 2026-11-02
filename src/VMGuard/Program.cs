@@ -79,7 +79,7 @@ namespace VMGuard
 
             // Single instance (dry run uses another name so it can run
             // next to the installed copy without clashing with it)
-            using (var mutex = new Mutex(false, opt.DryRun ? @"Local\VMGuard-DryRun" : @"Local\VMGuard"))
+            using (var mutex = new Mutex(false, opt.DryRun ? SingleInstance.DryRunMutexName : SingleInstance.MutexName))
             {
                 bool owned;
                 try { owned = mutex.WaitOne(0); }
@@ -100,9 +100,6 @@ namespace VMGuard
                     return 1;
                 }
 
-                // Get the shutdown notification before most applications
-                NativeMethods.SetProcessShutdownParameters(0x3FF, 0);
-
                 var suspender = new VmSuspender(vmrun, log, opt.DryRun);
                 if (opt.DryRun)
                     log.Write("VMGuard " + Version + " started in DRY-RUN MODE (battery threshold " + opt.BatteryThreshold +
@@ -113,8 +110,20 @@ namespace VMGuard
                               "%, interval " + opt.IntervalSeconds + " s, vmrun: " + vmrun + ")");
 
                 using (var form = new GuardForm(opt, log, suspender))
+                using (var exitEvent = opt.DryRun ? null : SingleInstance.CreateExitEvent())
                 {
+                    // The installer signals this event to replace or remove this copy cleanly
+                    RegisteredWaitHandle wait = null;
+                    if (exitEvent != null)
+                    {
+                        wait = ThreadPool.RegisterWaitForSingleObject(exitEvent, (state, timedOut) =>
+                        {
+                            log.Write("Exit requested by the installer");
+                            try { form.BeginInvoke((Action)form.Close); } catch { }
+                        }, null, Timeout.Infinite, executeOnlyOnce: true);
+                    }
                     Application.Run(form);
+                    wait?.Unregister(null);
                 }
                 mutex.ReleaseMutex();
             }

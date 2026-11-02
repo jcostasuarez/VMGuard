@@ -33,9 +33,6 @@ namespace VMGuard
             Text = "VMGuard";
             ShowInTaskbar = false;
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
-            StartPosition = FormStartPosition.Manual;
-            Location = new Point(-32000, -32000);
-            Size = new Size(1, 1);
             Opacity = 0;
 
             _timer = new Timer { Interval = opt.IntervalSeconds * 1000 };
@@ -154,7 +151,7 @@ namespace VMGuard
 
             var icon = new NotifyIcon
             {
-                Icon = SystemIcons.Shield,
+                Icon = AppIcon(),
                 Text = "VMGuard",
                 ContextMenuStrip = menu,
                 Visible = true,
@@ -198,6 +195,12 @@ namespace VMGuard
             {
                 _log.Write("ERROR opening the log: " + ex.Message);
             }
+        }
+
+        private static Icon AppIcon()
+        {
+            try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Shield; }
+            catch { return SystemIcons.Shield; }
         }
 
         protected override void Dispose(bool disposing)

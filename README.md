@@ -155,6 +155,18 @@ The log is written to `VMGuard.log`, next to the `VMGuard.exe` you ran.
 
 This deletes the scheduled task and stops VMGuard. The `%USERPROFILE%\VMGuard` folder (program and log) is not deleted; you can remove it by hand.
 
+## Antivirus false positives
+
+VMGuard is a small, unsigned program that starts at sign-in and holds back Windows shutdown for a moment, which is also what some malware does. Because of that, antivirus heuristics (for example Microsoft Defender's machine-learning detections ending in `!ml`, such as `Trojan:Win32/Bearfoos.A!ml`) can flag it by mistake. Release 1.0.1 avoids the patterns most likely to trigger this: it no longer kills processes or calls `schtasks.exe`, and the exe has an icon and full version information.
+
+If Defender still flags it:
+
+1. Check that the file is the one from the release: `Get-FileHash .\VMGuard.exe` must match `SHA256SUMS.txt`.
+2. Report it as a false positive at the [Microsoft file submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission): sign in, choose *Home customer* (or *Software developer*), product *Microsoft Defender Antivirus*, upload `VMGuard.exe`, select *Incorrectly detected as malware/malicious* and enter the detection name. Microsoft usually updates its definitions within a few days.
+3. Meanwhile, you can restore it from *Windows Security → Virus & threat protection → Protection history* and choose *Allow on device*.
+
+Code-signing the exe would make these detections much less likely; it needs a code-signing certificate (for example through Azure Trusted Signing or SignPath's free plan for open-source projects).
+
 ## Recommended fallback: hibernation
 
 If the battery runs out before VMGuard can act, hibernation is the safety net: the PC hibernates with the VMs as they were. Check whether it is available with `powercfg /a` and, if it isn't, enable it from an **administrator** console:

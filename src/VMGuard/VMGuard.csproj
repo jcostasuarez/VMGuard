@@ -12,10 +12,17 @@
     <AssemblyName>VMGuard</AssemblyName>
     <RootNamespace>VMGuard</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
+    <ApplicationIcon>VMGuard.ico</ApplicationIcon>
+    <AssemblyTitle>VMGuard</AssemblyTitle>
+    <Company>VMGuard</Company>
+    <Authors>VMGuard contributors</Authors>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <RepositoryUrl>https://github.com/jcostasuarez/VMGuard</RepositoryUrl>
+    <Deterministic>true</Deterministic>
     <Product>VMGuard</Product>
     <Description>Suspends VMware Workstation VMs on shutdown or low battery</Description>
-    <Copyright>VMGuard</Copyright>
+    <Copyright>Copyright (c) 2026 VMGuard contributors</Copyright>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Allows building outside Windows too (CI, Linux) -->
@@ -27,7 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="System.Management" />
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Drawing" />
   </ItemGroup>
